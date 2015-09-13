@@ -26,11 +26,11 @@
 
 (secretary/set-config! :prefix "#")
 
-(defn route-by-id
+(defn fixture-by-id
   [id]
   (->> @mvvm-state
        (map val)
-       (mapcat :routes)
+       (mapcat :fixtures)
        (map (partial apply hash-map))
        (reduce conj)
        id))
@@ -39,25 +39,28 @@
   []
   (->> @mvvm-state
        (map val)
-       (mapcat :routes)
+       (mapcat :fixtures)
        (map second)
        (map :route)
        set))
 
-(defn filter-routes
-  [location]
-  (->> @mvvm-state
-       (map val)
-       (mapcat :routes)
-       (map second)
-       (filter #(or (= (:route %) wildcard-route) (= (:route %) location)))))
+(defn filter-fixtures
+  [location opts]
+  (let [{:keys [include-static?] :or {include-static? false}} opts]
+    (->> @mvvm-state
+         (map val)
+         (mapcat :fixtures)
+         (map second)
+         (filter #(or (and include-static? (:static %)) (= (:route %) location))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn navigate!
-  [route-id]
+  [fixture-id]
 
-  ;; TODO - check we're not nav-ing to a wildcard route. Disallowed!
-
-  (let [route (->> route-id route-by-id :route)]
+  (let [route (->> fixture-id fixture-by-id :route)]
+    (if (:static route)
+      (throw (js/Error. "Cannot navigate to a static fixture!")))
     (log-info "Navigating to " route)
     (set! (.. js/document -location -href) (str "#" route))))
 
@@ -70,8 +73,7 @@
   [location]
   (let [mvvm-cursor (om/root-cursor mvvm-state)]
     ;; loop routes applicable to this location
-    (doseq [{:keys [target id route]} (filter-routes location)]
-      (log-debug "Activating " route " into " target)
+    (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
       (if-let [target-element (. js/document (getElementById (name target)))]
         (do
           ;; if we're not installed, add an om/root
@@ -84,7 +86,7 @@
                  om/IRender
                  (render [_]
                    (if-let [current-id (:current cursor)]
-                     (let [{:keys [view state]} (current-id (:routes cursor))]
+                     (let [{:keys [view state]} (current-id (:fixtures cursor))]
                        (dom/div nil
                                 (if view
                                   (om/build view state))))))))
@@ -97,14 +99,17 @@
           (om/update! mvvm-cursor [target :current] id))
         (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))
 
-(defn define-routes
-  [target routes]
+(defn define-fixtures!
+  [{:keys [target]} fixtures]
 
-  ;; TODO - add check for duplicate route ids
+  ;; TODO perhaps we do something other than throw here?
+  (doseq [{:keys [id]} fixtures]
+    (if (fixture-by-id id)
+      (throw (js/Error. (str "A route with id " id " already exists!")))))
 
   ;; check for new routes.
-  (doseq [mroute routes]
-    (let [route (:route mroute)]
+  (doseq [mfix fixtures]
+    (let [route (:route mfix)]
       (when (and (not= route wildcard-route) (not (contains? (route-list) route)))
         (log-debug "Defining a route for " route)
         (defroute (str route) []
@@ -113,8 +118,17 @@
 
   ;; save the routes.
   (let [ktarget (keyword target)]
-    (doseq [mroute (map #(assoc % :target ktarget) routes)]
-      (swap! mvvm-state assoc-in [ktarget :routes (:id mroute)] mroute))))
+    (doseq [mfix (map #(-> %
+                             (assoc :target ktarget)
+                             (assoc :static false)) fixtures)]
+      (swap! mvvm-state assoc-in [ktarget :fixtures (:id mfix)] mfix))))
+
+(defn define-static!
+  [{:keys [target id] :as fixture}]
+  (let [ktarget (keyword target)]
+    (swap! mvvm-state assoc-in [ktarget :fixtures id] (-> fixture
+                                                (assoc :target ktarget)
+                                                (assoc :static true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

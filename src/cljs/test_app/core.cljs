@@ -8,8 +8,8 @@
             [test-app.view-models.menu]
             [test-app.views.menu]))
 
-(venue/define-routes
-  "app"
+(venue/define-fixtures!
+  {:target "app"}
   [{:route "/"
     :id :views/home
     :view test-app.views.hello/view
@@ -22,12 +22,11 @@
     :view-model test-app.view-models.goodbye/handler
     :state {:text "I am sparta"}}])
 
-(venue/define-routes
-    "menu"
-    [{:route "*"
-      :id :menu
-      :view test-app.views.menu/view
-      :view-model test-app.view-models.menu/handler
-      :state {}}])
+(venue/define-static!
+  {:target "menu"
+   :id :menu
+   :view test-app.views.menu/view
+   :view-model test-app.view-models.menu/handler
+   :state {}})
 
 (venue/start!)

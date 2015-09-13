@@ -26,34 +26,40 @@
 
 (secretary/set-config! :prefix "#")
 
-(defn navigate!
-  [route-id]
-
-  ;; TODO - check we're not nav-ing to a wildcard route. Disallowed!
-
-  (let [route (->> @mvvm-state
-                   (map second)
-                   (mapcat :routes)
-                   (filter #(= (:id %) route-id))
-                   first
-                   :route)]
-    (log-info "Navigating to " route)
-    (set! (.. js/document -location -href) (str "#" route))))
+(defn route-by-id
+  [id]
+  (->> @mvvm-state
+       (map val)
+       (mapcat :routes)
+       (map (partial apply hash-map))
+       (reduce conj)
+       id))
 
 (defn route-list
   []
   (->> @mvvm-state
-       (map second)
+       (map val)
        (mapcat :routes)
+       (map second)
        (map :route)
        set))
 
 (defn filter-routes
   [location]
   (->> @mvvm-state
-       (map second)
+       (map val)
        (mapcat :routes)
+       (map second)
        (filter #(or (= (:route %) wildcard-route) (= (:route %) location)))))
+
+(defn navigate!
+  [route-id]
+
+  ;; TODO - check we're not nav-ing to a wildcard route. Disallowed!
+
+  (let [route (->> route-id route-by-id :route)]
+    (log-info "Navigating to " route)
+    (set! (.. js/document -location -href) (str "#" route))))
 
 (defn start!
   []
@@ -62,32 +68,33 @@
 
 (defn- launch-route!
   [location]
-  (let [cursor (om/root-cursor mvvm-state)]
+  (let [mvvm-cursor (om/root-cursor mvvm-state)]
     ;; loop routes applicable to this location
-    (doseq [{:keys [target] :as route} (filter-routes location)]
-      (log-debug "Activating " (:route route) " into " target)
-      (if-let [target-element (. js/document (getElementById target))]
+    (doseq [{:keys [target id route]} (filter-routes location)]
+      (log-debug "Activating " route " into " target)
+      (if-let [target-element (. js/document (getElementById (name target)))]
         (do
           ;; if we're not installed, add an om/root
-          (when (not (:installed? (get cursor target)))
+          (when (not (:installed? (get mvvm-cursor target)))
             (log-debug target " does not have an om/root. Installing now...")
-
             (om/root
              (fn
-               [{:keys [view state]} owner]
+               [cursor owner]
                (reify
                  om/IRender
                  (render [_]
-                   (if view
-                     (om/build view state)
-                     (dom/span nil "Missing view?")))))
+                   (if-let [current-id (:current cursor)]
+                     (let [{:keys [view state]} (current-id (:routes cursor))]
+                       (dom/div nil
+                                (if view
+                                  (om/build view state))))))))
              mvvm-state
              {:target target-element
-              :path [target :current]})
-            (om/update! cursor [target :installed?] true))
+              :path [target]})
+            (om/update! mvvm-cursor [target :installed?] true))
 
           ;; set the current state
-          (om/update! cursor [target :current] route))
+          (om/update! mvvm-cursor [target :current] id))
         (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))
 
 (defn define-routes
@@ -96,8 +103,8 @@
   ;; TODO - add check for duplicate route ids
 
   ;; check for new routes.
-  (doseq [routem routes]
-    (let [route (:route routem)]
+  (doseq [mroute routes]
+    (let [route (:route mroute)]
       (when (and (not= route wildcard-route) (not (contains? (route-list) route)))
         (log-debug "Defining a route for " route)
         (defroute (str route) []
@@ -105,7 +112,9 @@
           (launch-route! route)))))
 
   ;; save the routes.
-  (swap! mvvm-state assoc-in [target :routes] (map #(assoc % :target target) routes)))
+  (let [ktarget (keyword target)]
+    (doseq [mroute (map #(assoc % :target ktarget) routes)]
+      (swap! mvvm-state assoc-in [ktarget :routes (:id mroute)] mroute))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

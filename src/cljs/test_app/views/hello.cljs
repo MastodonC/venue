@@ -12,5 +12,6 @@
           (html
            [:div
             [:h1 (:text cursor)]
+            [:span (str (om/cursor? cursor))]
             [:button {:on-click #(om/update! cursor [:text] "hahah")} "Press"]
             [:button {:on-click #(mvvm/navigate! :views/goodbye)} "Navigate"]])))

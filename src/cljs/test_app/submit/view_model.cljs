@@ -1,4 +1,4 @@
-(ns ^:figwheel-always test-app.view-models.menu
+(ns ^:figwheel-always test-app.submit.view-model
     (:require [om.core :as om :include-macros true]
               [schema.core :as s :include-macros true]))
 

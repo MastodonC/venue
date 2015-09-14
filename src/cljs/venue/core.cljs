@@ -1,5 +1,5 @@
 (ns ^:figwheel-always venue.core
-    (:require [cljs.core.async :as async :refer [chan]]
+    (:require [cljs.core.async :as async :refer [<! chan put! mult tap]]
               [om.core :as om :include-macros true]
               [om-tools.dom :as dom :include-macros true]
               [goog.events :as events]
@@ -11,9 +11,13 @@
     (:import goog.History))
 
 
-(defonce app-state (atom {}))
-(defonce mvvm-state (atom {}))
-(def wildcard-route "*")
+(defonce venue-state (atom {}))
+
+;;
+(def chan-sz 20)
+(def refresh-ch (chan chan-sz))
+(def refresh-mult (mult refresh-ch))
+
 (def history (History.))
 (def log-prefix "[venue]")
 
@@ -28,7 +32,7 @@
 
 (defn fixture-by-id
   [id]
-  (->> @mvvm-state
+  (->> @venue-state
        (map val)
        (mapcat :fixtures)
        (map (partial apply hash-map))
@@ -37,7 +41,7 @@
 
 (defn route-list
   []
-  (->> @mvvm-state
+  (->> @venue-state
        (map val)
        (mapcat :fixtures)
        (map second)
@@ -47,7 +51,7 @@
 (defn filter-fixtures
   [location opts]
   (let [{:keys [include-static?] :or {include-static? false}} opts]
-    (->> @mvvm-state
+    (->> @venue-state
          (map val)
          (mapcat :fixtures)
          (map second)
@@ -71,7 +75,7 @@
 
 (defn- launch-route!
   [location]
-  (let [mvvm-cursor (om/root-cursor mvvm-state)]
+  (let [mvvm-cursor (om/root-cursor venue-state)]
     ;; loop routes applicable to this location
     (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
       (if-let [target-element (. js/document (getElementById (name target)))]
@@ -83,14 +87,25 @@
              (fn
                [cursor owner]
                (reify
+                 om/IWillMount
+                 (will-mount [_]
+                   (let [;;refresh (chan chan-sz)
+                         ;;_ (tap refresh-mult refresh)
+                         a 1]
+                     (go-loop []
+                       (log-debug "INSIDE LOOP")
+                       (let [foo (<! refresh-ch)]
+                         (log-debug "HAHAHA")
+                         (om/refresh! owner)))))
                  om/IRender
                  (render [_]
+                   (log-debug "RENDERING")
                    (if-let [current-id (:current cursor)]
                      (let [{:keys [view state]} (current-id (:fixtures cursor))]
                        (dom/div nil
                                 (if view
                                   (om/build view state))))))))
-             mvvm-state
+             venue-state
              {:target target-element
               :path [target]})
             (om/update! mvvm-cursor [target :installed?] true))
@@ -103,14 +118,14 @@
   [{:keys [target]} fixtures]
 
   ;; TODO perhaps we do something other than throw here?
-  (doseq [{:keys [id]} fixtures]
-    (if (fixture-by-id id)
-      (throw (js/Error. (str "A route with id " id " already exists!")))))
+  (comment (doseq [{:keys [id]} fixtures]
+             (if (fixture-by-id id)
+               (throw (js/Error. (str "A route with id " id " already exists!"))))))
 
   ;; check for new routes.
   (doseq [mfix fixtures]
     (let [route (:route mfix)]
-      (when (and (not= route wildcard-route) (not (contains? (route-list) route)))
+      (when (not (contains? (route-list) route))
         (log-debug "Defining a route for " route)
         (defroute (str route) []
           (log-info "Routing " route)
@@ -121,12 +136,12 @@
     (doseq [mfix (map #(-> %
                              (assoc :target ktarget)
                              (assoc :static false)) fixtures)]
-      (swap! mvvm-state assoc-in [ktarget :fixtures (:id mfix)] mfix))))
+      (swap! venue-state assoc-in [ktarget :fixtures (:id mfix)] mfix))))
 
 (defn define-static!
   [{:keys [target id] :as fixture}]
   (let [ktarget (keyword target)]
-    (swap! mvvm-state assoc-in [ktarget :fixtures id] (-> fixture
+    (swap! venue-state assoc-in [ktarget :fixtures id] (-> fixture
                                                 (assoc :target ktarget)
                                                 (assoc :static true)))))
 
@@ -143,4 +158,5 @@
     (goog.events/listen EventType/NAVIGATE on-navigate)
     (.setEnabled true)))
 
-(defn on-js-reload []) ;; TODO
+(defn on-js-reload []
+  (put! refresh-ch true))

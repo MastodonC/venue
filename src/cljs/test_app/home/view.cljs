@@ -1,4 +1,4 @@
-(ns test-app.views.hello
+(ns ^:figwheel-always test-app.home.view
   (:require [om.core :as om :include-macros true]
             [om-tools.dom :as dom :include-macros true]
             [om-tools.core :refer-macros [defcomponent]]

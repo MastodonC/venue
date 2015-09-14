@@ -1,4 +1,4 @@
-(ns test-app.views.goodbye
+(ns ^:figwheel-always test-app.menu.view
   (:require [om.core :as om :include-macros true]
             [om-tools.dom :as dom :include-macros true]
             [om-tools.core :refer-macros [defcomponent]]
@@ -10,4 +10,7 @@
   (render [_]
           (html
            [:div
-            [:h2 (:text cursor)]])))
+            [:span
+             [:h1 "MENU | "]
+             [:a "foo dwdw  dw"]]
+            ])))

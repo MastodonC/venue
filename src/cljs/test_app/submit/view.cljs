@@ -1,4 +1,4 @@
-(ns test-app.views.menu
+(ns ^:figwheel-always test-app.submit.view
   (:require [om.core :as om :include-macros true]
             [om-tools.dom :as dom :include-macros true]
             [om-tools.core :refer-macros [defcomponent]]
@@ -10,4 +10,4 @@
   (render [_]
           (html
            [:div
-            [:h1 "MENU"]])))
+            [:h2 (:text cursor)]])))

@@ -1,10 +1,24 @@
-# venue
+# Venue
 
-FIXME: Write a one-line description of your library/project.
+Venue is an MVVM-inspired ClojureScript framework for creating [single-page applications](https://en.wikipedia.org/wiki/Single-page_application). It uses Om, Secretary, DataScript and a handful of other CLJS libraries. It's opinionated and expects applications to adhere to the principles of [MVVM] (https://en.wikipedia.org/wiki/Model_View_ViewModel): databinding is provided by Om/React, models are facilitated by DataScript.
 
-## Overview
+#### A route with a view
 
-FIXME: Write a paragraph about the library/project and highlight its goals.
+```clojure
+(ns test-app.core
+  (:require [venue.core :as venue]
+            [test-app.hello]))
+
+(venue/define-fixtures!
+  {:target "app"}
+  [{:route "/"
+    :id :views/home
+    :view test-app.hello/view
+    :view-model test-app.hello/view-model
+    :state {:text "Hola hola"}}])
+
+(venue/start!)
+```
 
 ## Setup
 

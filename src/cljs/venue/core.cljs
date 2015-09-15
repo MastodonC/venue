@@ -114,14 +114,15 @@
                    (will-mount [_]
                      (let [refresh-tap (tap refresh-mult (chan chan-sz))]
                        ;; loop for refresh
-                       (go-loop []
-                         (let [_ (<! refresh-tap)]
-                           (do
+                       (go
+                         (while true
+                           (let [_ (<! refresh-tap)]
                              (om/refresh! owner))))
-                       (go-loop []
-                         (let [e (<! event-chan)]
-                           (let [current-id (:current @cursor)]
-                             (apply (-> @cursor :fixtures current-id :view-model) e))))))
+                       (go
+                         (while true
+                           (let [e (<! event-chan)]
+                             (let [current-id (:current @cursor)]
+                               (apply (-> @cursor :fixtures current-id :view-model) e)))))))
                    om/IRender
                    (render [_]
                      (if-let [current-id (:current cursor)]

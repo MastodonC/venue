@@ -6,6 +6,6 @@
   (fn [event args] event))
 
 (defmethod handler
-  :test-event
-  [_ args]
-  (println "Got test event"))
+  :login
+  [_ {:keys [email password]}]
+  (println "Logging in..." email password))

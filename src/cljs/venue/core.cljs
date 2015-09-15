@@ -16,11 +16,13 @@
 ;; state blobs
 (defonce venue-state (atom {}))
 (defonce routes (atom {}))
+(defonce state (atom {:started? false}))
 
 ;; channels
 (defonce chan-sz 20)
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
+(defonce event-chan (chan chan-sz))
 
 ;; other vars
 (defonce history (History.))
@@ -62,19 +64,17 @@
          (map second)
          (filter #(or (and include-static? (:static %)) (= (:route %) location))))))
 
-(defn route-to-keyword
-  [route]
-  (keyword (str "r" (-> route
-                        (.replace "/" "-")
-                        (.replace ":" "_")
-                        (.replace "*" "_")))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
 (defn get-route
   [id & opts]
-  (let [kroute (->> id fixture-by-id :route route-to-keyword)]
-    ((get @routes kroute) (first opts))))
+  (let [route (->> id fixture-by-id :route)]
+    (secretary/render-route route (first opts))))
 
 (defn navigate!
   [id & opts]
@@ -84,10 +84,21 @@
     (log-info "Navigating to " route)
     (set! (.. js/document -location -href) route)))
 
+(defn- start-event-loop!
+  []
+  (log-info "Event loop started.")
+  (go-loop []
+    (let [event (<! event-chan)]
+      (log-debug "Got event: " event))
+    (recur)))
+
 (defn start!
   []
-  (log-info "Starting up...")
-  (secretary/dispatch! js/window.location.hash))
+  (when (not (:started? @state))
+    (swap! state assoc :started? true)
+    (log-info "Starting up...")
+    (secretary/dispatch! js/window.location.hash)
+    (start-event-loop!)))
 
 (defn- launch-route!
   [location]
@@ -119,7 +130,8 @@
                                   (om/build (view) state))))))))
              venue-state
              {:target target-element
-              :path [target]})
+              :path [target]
+              :shared {:event-chan event-chan}})
             (om/update! venue-cursor [target :installed?] true))
 
           ;; set the current state
@@ -136,9 +148,10 @@
   ;; check for new routes.
   ;; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
   (when (not (contains? (route-list) route))
-    (let [kroute (route-to-keyword route)]
-      (log-debug "Defining a route for " route)
-      (vm/defroute! route kroute routes launch-route!)))
+    (log-debug "Defining a route for " route)
+    (defroute (str route) []
+      (log-info "Routing " route)
+      (launch-route! route)))
 
   ;; save the view
   (let [ktarget (keyword target)

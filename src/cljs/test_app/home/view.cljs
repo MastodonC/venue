@@ -13,5 +13,8 @@
            [:div
             [:h1 (:text cursor)]
             [:h2 "Some intro"]
-            [:button {:on-click #(om/update! cursor [:text] "hahah")} "Press"]
-            [:button {:on-click #(venue/navigate! :views/submit)} "Navigate"]])))
+            [:button {:on-click #(om/update! cursor [:text] "Don't fiddle with state!")} "Change state"]
+            [:button {:on-click #(venue/navigate! :views/submit)} "Navigate"]
+            [:button {:on-click #(do
+                                   (venue/raise! owner :test-event {:foo "bar"})
+                                   (.preventDefault %))} "Event"]])))

@@ -7,15 +7,13 @@
               [schema.core :as s :include-macros true]
               [secretary.core :as secretary :refer-macros [defroute]])
     (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
-                     [cljs-log.core :as log]
-                     [venue.macros :as vm])
+                     [cljs-log.core :as log])
     (:import goog.History))
 
 (enable-console-print!)
 
 ;; state blobs
 (defonce venue-state (atom {}))
-(defonce routes (atom {}))
 (defonce state (atom {:started? false}))
 
 ;; channels
@@ -66,7 +64,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
+(defn raise!
+  [owner event data]
+  (let [c (om/get-shared owner [:event-chan])]
+    (put! c event data)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

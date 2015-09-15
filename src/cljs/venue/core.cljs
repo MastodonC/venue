@@ -14,9 +14,9 @@
 (defonce venue-state (atom {}))
 
 ;;
-(def chan-sz 20)
-(def refresh-ch (chan chan-sz))
-(def refresh-mult (mult refresh-ch))
+(defonce chan-sz 20)
+(defonce refresh-ch (chan chan-sz))
+(defonce refresh-mult (mult refresh-ch))
 
 (def history (History.))
 (def log-prefix "[venue]")
@@ -89,14 +89,12 @@
                (reify
                  om/IWillMount
                  (will-mount [_]
-                   (let [;;refresh (chan chan-sz)
-                         ;;_ (tap refresh-mult refresh)
-                         a 1]
+                   (let [refresh-tap (tap refresh-mult (chan chan-sz))]
                      (go-loop []
-                       (log-debug "INSIDE LOOP")
-                       (let [foo (<! refresh-ch)]
-                         (log-debug "HAHAHA")
-                         (om/refresh! owner)))))
+                       (let [foo (<! refresh-tap)]
+                         (log-debug "GOT REFRESH")
+                         (om/refresh! owner))
+                       (recur))))
                  om/IRender
                  (render [_]
                    (log-debug "RENDERING")
@@ -104,7 +102,7 @@
                      (let [{:keys [view state]} (current-id (:fixtures cursor))]
                        (dom/div nil
                                 (if view
-                                  (om/build view state))))))))
+                                  (om/build (view) state))))))))
              venue-state
              {:target target-element
               :path [target]})
@@ -123,6 +121,7 @@
                (throw (js/Error. (str "A route with id " id " already exists!"))))))
 
   ;; check for new routes.
+  ; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
   (doseq [mfix fixtures]
     (let [route (:route mfix)]
       (when (not (contains? (route-list) route))

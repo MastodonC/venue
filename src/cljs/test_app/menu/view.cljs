@@ -12,5 +12,5 @@
            [:div
             [:span
              [:h1 "MENU | "]
-             [:a "foo dwdw  dw"]]
+             [:a "foo"]]
             ])))

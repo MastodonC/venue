@@ -20,13 +20,13 @@
   :plugins [[lein-cljsbuild "1.1.0"]
             [lein-figwheel "0.3.9"]]
 
-  :source-paths ["src"]
+  :source-paths ["src/clj"]
 
   :clean-targets ^{:protect false} ["resources/public/js/compiled" "target"]
 
   :cljsbuild {
     :builds [{:id "dev"
-              :source-paths ["src/cljs"]
+              :source-paths ["src/cljs" "src/clj"]
 
               :figwheel { :on-jsload "venue.core/on-js-reload" }
 
@@ -36,7 +36,7 @@
                          :output-dir "resources/public/js/compiled/out"
                          :source-map-timestamp true }}
              {:id "min"
-              :source-paths ["src/cljs"]
+              :source-paths ["src/cljs" "src/clj"]
               :compiler {:output-to "resources/public/js/compiled/test_app.js"
                          :main test-app.core
                          :optimizations :advanced

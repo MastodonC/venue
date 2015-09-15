@@ -11,6 +11,8 @@
   (render [_]
           (html
            [:div
-            [:h1 {:style {:display "inline"}} "MENU | "]
-            [:a {:href (venue/get-route :views/submit)} "Test"]
+            [:h3 {:style {:display "inline"}} "BLOG MENU | "]
+            [:a {:href (venue/get-route :views/home)} "Read Blog"]
+            [:span " | "]
+            [:a {:href (venue/get-route :views/submit)} "Submit Post"]
             ])))

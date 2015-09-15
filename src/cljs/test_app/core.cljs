@@ -27,7 +27,7 @@
 
 (venue/defstatic!
   {:target "menu"
-   :id :menu
+   :id :static/menu
    :view test-app.menu.view/view
    :view-model test-app.menu.view-model/handler
    :state {}})

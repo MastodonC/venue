@@ -7,29 +7,33 @@
               [schema.core :as s :include-macros true]
               [secretary.core :as secretary :refer-macros [defroute]])
     (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
-                     [cljs-log.core :as log])
+                     [cljs-log.core :as log]
+                     [venue.macros :as vm])
     (:import goog.History))
 
+(enable-console-print!)
 
+;; state blobs
 (defonce venue-state (atom {}))
 (defonce routes (atom {}))
 
-;;
+;; channels
 (defonce chan-sz 20)
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
 
-(def history (History.))
-(def log-prefix "[venue]")
+;; other vars
+(defonce history (History.))
+(defonce log-prefix "[venue]")
+(secretary/set-config! :prefix "#")
 
+;; log prefix helpers
 (defn log-debug  [& body] (log/debug  log-prefix " " (apply str body)))
 (defn log-info   [& body] (log/info   log-prefix " " (apply str body)))
 (defn log-warn   [& body] (log/warn   log-prefix " " (apply str body)))
 (defn log-severe [& body] (log/severe log-prefix " " (apply str body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(secretary/set-config! :prefix "#")
 
 (defn fixture-by-id
   [id]
@@ -58,12 +62,19 @@
          (map second)
          (filter #(or (and include-static? (:static %)) (= (:route %) location))))))
 
+(defn route-to-keyword
+  [route]
+  (keyword (str "r" (-> route
+                        (.replace "/" "-")
+                        (.replace ":" "_")
+                        (.replace "*" "_")))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn get-route
   [id & opts]
-  (let [raw-route (->> id fixture-by-id :route)]
-    ((get @routes raw-route) (first opts))))
+  (let [kroute (->> id fixture-by-id :route route-to-keyword)]
+    ((get @routes kroute) (first opts))))
 
 (defn navigate!
   [id & opts]
@@ -80,13 +91,13 @@
 
 (defn- launch-route!
   [location]
-  (let [mvvm-cursor (om/root-cursor venue-state)]
+  (let [venue-cursor (om/root-cursor venue-state)]
     ;; loop routes applicable to this location
     (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
       (if-let [target-element (. js/document (getElementById (name target)))]
         (do
           ;; if we're not installed, add an om/root
-          (when (not (:installed? (get mvvm-cursor target)))
+          (when (not (:installed? (get venue-cursor target)))
             (log-debug target " does not have an om/root. Installing now...")
             (om/root
              (fn
@@ -109,10 +120,10 @@
              venue-state
              {:target target-element
               :path [target]})
-            (om/update! mvvm-cursor [target :installed?] true))
+            (om/update! venue-cursor [target :installed?] true))
 
           ;; set the current state
-          (om/update! mvvm-cursor [target :current] id))
+          (om/update! venue-cursor [target :current] id))
         (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))
 
 (defn- add-view!
@@ -125,11 +136,9 @@
   ;; check for new routes.
   ;; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
   (when (not (contains? (route-list) route))
-    (log-debug "Defining a route for " route)
-    (defroute sec_obj (str route) []
-      (log-info "Routing " route)
-      (launch-route! route))
-    (swap! routes assoc-in [route] sec_obj))
+    (let [kroute (route-to-keyword route)]
+      (log-debug "Defining a route for " route)
+      (vm/defroute! route kroute routes launch-route!)))
 
   ;; save the view
   (let [ktarget (keyword target)

@@ -12,6 +12,7 @@
 
 
 (defonce venue-state (atom {}))
+(defonce routes (atom {}))
 
 ;;
 (defonce chan-sz 20)
@@ -59,14 +60,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn navigate!
-  [fixture-id]
+(defn get-route
+  [id & opts]
+  (let [raw-route (->> id fixture-by-id :route)]
+    ((get @routes raw-route) (first opts))))
 
-  (let [route (->> fixture-id fixture-by-id :route)]
+(defn navigate!
+  [id & opts]
+  (let [route (get-route id opts)]
     (if (:static route)
       (throw (js/Error. "Cannot navigate to a static fixture!")))
     (log-info "Navigating to " route)
-    (set! (.. js/document -location -href) (str "#" route))))
+    (set! (.. js/document -location -href) route)))
 
 (defn start!
   []
@@ -113,18 +118,18 @@
 (defn- add-view!
   [{:keys [target view view-model id state route] :as fix}]
 
-  ;; TODO perhaps we do something other than throw here?
-  (comment (doseq [{:keys [id]} fixtures]
-             (if (fixture-by-id id)
-               (throw (js/Error. (str "A route with id " id " already exists!"))))))
+  ;; FIXME perhaps we do something other than throw here?
+  (if (fixture-by-id id)
+    (throw (js/Error. (str "A route with id " id " already exists!"))))
 
   ;; check for new routes.
   ;; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
   (when (not (contains? (route-list) route))
     (log-debug "Defining a route for " route)
-    (defroute (str route) []
+    (defroute sec_obj (str route) []
       (log-info "Routing " route)
-      (launch-route! route)))
+      (launch-route! route))
+    (swap! routes assoc-in [route] sec_obj))
 
   ;; save the view
   (let [ktarget (keyword target)

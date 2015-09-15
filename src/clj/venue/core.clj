@@ -4,19 +4,27 @@
    [cljs.core]))
 
 (defmacro defview!
-  [{:keys [target view view-model id state route]}]
-  `(define-fixtures!
-     {:target ~target}
-     [{:route ~route
-       :id ~id
-       :view (cljs.core/fn [] ~view)
-       :view-model ~view-model
-       :state ~state}]))
+  [{:keys [target view view-model id state route]
+    :or   {static false}}]
+  (let [v (gensym)]
+    `(defonce ~v
+       (do
+         (add-view!
+          {:target ~target
+           :route ~route
+           :id ~id
+           :view (cljs.core/fn [] ~view)
+           :view-model ~view-model
+           :state ~state})))))
 
-(defmacro defviews!
-  [args views]
-  (let [nviews (gensym 'nviews)]
-    `(let [~nviews (mapv #(-> % (assoc :view (cljs.core/fn [] (:view %)))) ~views)]
-       (define-fixtures!
-         ~args
-         ~nviews))))
+(defmacro defstatic!
+  [{:keys [target view view-model id state]}]
+  (let [v (gensym)]
+    `(defonce ~v
+       (do
+         (add-static-view!
+          {:target ~target
+           :id ~id
+           :view (cljs.core/fn [] ~view)
+           :view-model ~view-model
+           :state ~state})))))

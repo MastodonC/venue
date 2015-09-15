@@ -9,36 +9,27 @@
             [test-app.menu.view-model])
   (:require-macros [cljs-log.core :as log]))
 
-(defonce init
-  (do
-    (venue/defview!
-      {:target "app"
-       :route "/"
-       :id :views/home
-       :view test-app.home.view/view
-       :view-model test-app.home.view-model/handler
-       :state {:text "Hola hola"}})
+(venue/defview!
+  {:target "app"
+   :route "/"
+   :id :views/home
+   :view test-app.home.view/view
+   :view-model test-app.home.view-model/handler
+   :state {:text "Home Page"}})
 
-    (comment (venue/define-fixtures!
-               {:target "app"}
-               [{:route "/"
-                 :id :views/home
-                 :view test-app.home.view/view
-                 :view-model test-app.home.view-model/handler
-                 :state {:text "Hola hola"}}
+(venue/defview!
+  {:target "app"
+   :route "/submit"
+   :id :views/submit
+   :view test-app.submit.view/view
+   :view-model test-app.submit.view-model/handler
+   :state {:text "Submit Page"}})
 
-                ;; {:route "/submit"
-                ;;  :id :views/submit
-                ;;  :view test-app.submit.view/view
-                ;;  :view-model test-app.submit.view-model/handler
-                ;;  :state {:text "I am sparta"}}
-                ]))
+(venue/defstatic!
+  {:target "menu"
+   :id :menu
+   :view test-app.menu.view/view
+   :view-model test-app.menu.view-model/handler
+   :state {}})
 
-    (comment (venue/define-static!
-               {:target "menu"
-                :id :menu
-                :view test-app.menu.view/view
-                :view-model test-app.menu.view-model/handler
-                :state {}}))
-
-    (venue/start!)))
+(venue/start!)

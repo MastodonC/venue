@@ -91,13 +91,11 @@
                  (will-mount [_]
                    (let [refresh-tap (tap refresh-mult (chan chan-sz))]
                      (go-loop []
-                       (let [foo (<! refresh-tap)]
-                         (log-debug "GOT REFRESH")
+                       (let [_ (<! refresh-tap)]
                          (om/refresh! owner))
                        (recur))))
                  om/IRender
                  (render [_]
-                   (log-debug "RENDERING")
                    (if-let [current-id (:current cursor)]
                      (let [{:keys [view state]} (current-id (:fixtures cursor))]
                        (dom/div nil
@@ -112,8 +110,8 @@
           (om/update! mvvm-cursor [target :current] id))
         (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))
 
-(defn define-fixtures!
-  [{:keys [target]} fixtures]
+(defn- add-view!
+  [{:keys [target view view-model id state route] :as fix}]
 
   ;; TODO perhaps we do something other than throw here?
   (comment (doseq [{:keys [id]} fixtures]
@@ -121,23 +119,21 @@
                (throw (js/Error. (str "A route with id " id " already exists!"))))))
 
   ;; check for new routes.
-  ; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
-  (doseq [mfix fixtures]
-    (let [route (:route mfix)]
-      (when (not (contains? (route-list) route))
-        (log-debug "Defining a route for " route)
-        (defroute (str route) []
-          (log-info "Routing " route)
-          (launch-route! route)))))
+  ;; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
+  (when (not (contains? (route-list) route))
+    (log-debug "Defining a route for " route)
+    (defroute (str route) []
+      (log-info "Routing " route)
+      (launch-route! route)))
 
-  ;; save the routes.
-  (let [ktarget (keyword target)]
-    (doseq [mfix (map #(-> %
-                             (assoc :target ktarget)
-                             (assoc :static false)) fixtures)]
-      (swap! venue-state assoc-in [ktarget :fixtures (:id mfix)] mfix))))
+  ;; save the view
+  (let [ktarget (keyword target)
+        mfix (-> fix
+                   (assoc :target ktarget)
+                   (assoc :static false))]
+    (swap! venue-state assoc-in [ktarget :fixtures id] mfix)))
 
-(defn define-static!
+(defn- add-static-view!
   [{:keys [target id] :as fixture}]
   (let [ktarget (keyword target)]
     (swap! venue-state assoc-in [ktarget :fixtures id] (-> fixture
@@ -158,4 +154,5 @@
     (.setEnabled true)))
 
 (defn on-js-reload []
+  (log-debug "Refreshing views...")
   (put! refresh-ch true))

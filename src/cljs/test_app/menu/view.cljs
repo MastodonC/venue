@@ -10,7 +10,6 @@
   (render [_]
           (html
            [:div
-            [:span
-             [:h1 "MENU | "]
-             [:a "foo"]]
+            [:h1 {:style {:display "inline"}} "MENU | "]
+            [:a "foo dw dwea"]
             ])))

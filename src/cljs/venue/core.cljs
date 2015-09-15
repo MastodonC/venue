@@ -20,7 +20,6 @@
 (defonce chan-sz 20)
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
-(defonce event-chan (chan chan-sz))
 
 ;; other vars
 (defonce history (History.))
@@ -67,39 +66,34 @@
 (defn raise!
   [owner event data]
   (let [c (om/get-shared owner [:event-chan])]
-    (put! c event data)))
+    (put! c [event data])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (defn get-route
-  [id & opts]
-  (let [route (->> id fixture-by-id :route)]
-    (secretary/render-route route (first opts))))
+  ([id]
+   (get-route id {}))
+  ([id opts]
+   (let [route (->> id fixture-by-id :route)]
+     (secretary/render-route route opts))))
 
 (defn navigate!
-  [id & opts]
-  (let [route (get-route id opts)]
-    (if (:static route)
-      (throw (js/Error. "Cannot navigate to a static fixture!")))
-    (log-info "Navigating to " route)
-    (set! (.. js/document -location -href) route)))
-
-(defn- start-event-loop!
-  []
-  (log-info "Event loop started.")
-  (go-loop []
-    (let [event (<! event-chan)]
-      (log-debug "Got event: " event))
-    (recur)))
+  ([id]
+   (navigate! id {}))
+  ([id opts]
+   (let [route (get-route id opts)]
+     (if (:static route)
+       (throw (js/Error. "Cannot navigate to a static fixture!")))
+     (log-info "Navigating to " route)
+     (set! (.. js/document -location -href) route))))
 
 (defn start!
   []
   (when (not (:started? @state))
     (swap! state assoc :started? true)
     (log-info "Starting up...")
-    (secretary/dispatch! js/window.location.hash)
-    (start-event-loop!)))
+    (secretary/dispatch! js/window.location.hash)))
 
 (defn- launch-route!
   [location]
@@ -111,28 +105,34 @@
           ;; if we're not installed, add an om/root
           (when (not (:installed? (get venue-cursor target)))
             (log-debug target " does not have an om/root. Installing now...")
-            (om/root
-             (fn
-               [cursor owner]
-               (reify
-                 om/IWillMount
-                 (will-mount [_]
-                   (let [refresh-tap (tap refresh-mult (chan chan-sz))]
-                     (go-loop []
-                       (let [_ (<! refresh-tap)]
-                         (om/refresh! owner))
-                       (recur))))
-                 om/IRender
-                 (render [_]
-                   (if-let [current-id (:current cursor)]
-                     (let [{:keys [view state]} (current-id (:fixtures cursor))]
-                       (dom/div nil
-                                (if view
-                                  (om/build (view) state))))))))
-             venue-state
-             {:target target-element
-              :path [target]
-              :shared {:event-chan event-chan}})
+            (let [event-chan (chan chan-sz)]
+              (om/root
+               (fn
+                 [cursor owner]
+                 (reify
+                   om/IWillMount
+                   (will-mount [_]
+                     (let [refresh-tap (tap refresh-mult (chan chan-sz))]
+                       ;; loop for refresh
+                       (go-loop []
+                         (let [_ (<! refresh-tap)]
+                           (do
+                             (om/refresh! owner))))
+                       (go-loop []
+                         (let [e (<! event-chan)]
+                           (let [current-id (:current @cursor)]
+                             (apply (-> @cursor :fixtures current-id :view-model) e))))))
+                   om/IRender
+                   (render [_]
+                     (if-let [current-id (:current cursor)]
+                       (let [{:keys [view state]} (current-id (:fixtures cursor))]
+                         (dom/div nil
+                                  (if view
+                                    (om/build (view) state))))))))
+               venue-state
+               {:target target-element
+                :path [target]
+                :shared {:event-chan event-chan}}))
             (om/update! venue-cursor [target :installed?] true))
 
           ;; set the current state
@@ -157,16 +157,16 @@
   ;; save the view
   (let [ktarget (keyword target)
         mfix (-> fix
-                   (assoc :target ktarget)
-                   (assoc :static false))]
+                 (assoc :target ktarget)
+                 (assoc :static false))]
     (swap! venue-state assoc-in [ktarget :fixtures id] mfix)))
 
 (defn- add-static-view!
   [{:keys [target id] :as fixture}]
   (let [ktarget (keyword target)]
     (swap! venue-state assoc-in [ktarget :fixtures id] (-> fixture
-                                                (assoc :target ktarget)
-                                                (assoc :static true)))))
+                                                           (assoc :target ktarget)
+                                                           (assoc :static true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

@@ -90,6 +90,15 @@ The world of ClojureScript applications is still in the Triassic period. There i
 
 Why not? Just because this is 'new technology' doesn't mean the tales of old don't apply. MVVM helps (as do the whole MV*-family) answer a lot of questions regarding application architecture and as Om/React gives us a very easy way of data-binding (one of the core features of MVVM that is usually tough to do without a mature UI framework) it makes sense that we capitalise on that.
 
+## Tests
+
+This library has a bunch of tests with it which you can run using.
+
+```clojure
+lein doo slimer test once
+```
+You will need Nodejs (>= 0.12, <= 0.12.7) and slimerjs (`npm install -g slimerjs`) in order to do this.
+
 ## License
 
 Copyright © 2014 MastodonC

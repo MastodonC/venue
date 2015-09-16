@@ -121,8 +121,9 @@
                        (go
                          (while true
                            (let [e (<! event-chan)]
-                             (let [current-id (:current @cursor)]
-                               (apply (-> @cursor :fixtures current-id :view-model) e)))))))
+                             (let [current-id (:current @cursor)
+                                   {:keys [view-model state]} (current-id (:fixtures cursor))]
+                               (apply view-model (conj e state))))))))
                    om/IRender
                    (render [_]
                      (if-let [current-id (:current cursor)]

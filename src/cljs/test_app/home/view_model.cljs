@@ -3,9 +3,14 @@
               [schema.core :as s :include-macros true]))
 
 (defmulti handler
-  (fn [event args] event))
+  (fn [event args cursor] event))
 
 (defmethod handler
   :login
-  [_ {:keys [email password]}]
+  [_ {:keys [email password]} cursor]
   (println "Logging in..." email password))
+
+(defmethod handler
+  :test-event
+  [_ new-text cursor]
+  (om/update! cursor :text new-text))

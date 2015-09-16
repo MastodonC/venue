@@ -1,4 +1,4 @@
-(defproject venue "0.1.0-SNAPSHOT"
+(defproject venue "0.1.1-SNAPSHOT"
   :description "Experimental MVVM-like framework for ClojureScript"
   :url "https://github.com/mastodonc/venue"
   :license {:name "Eclipse Public License"
@@ -12,4 +12,10 @@
                  [secretary "1.2.3"]
                  [cljs-log "0.2.2"]]
 
-  :plugins [[lein-cljsbuild "1.1.0"]])
+  :plugins [[lein-cljsbuild "1.1.0"]
+            [lein-doo "0.1.5-SNAPSHOT"]]
+
+  :cljsbuild {:builds {:test {:source-paths ["src/" "test/"]
+                              :compiler {:output-to "resources/public/js/testable.js"
+                                         :main 'venue.test-runner
+                                         :optimizations :none}}}})

@@ -2,6 +2,8 @@
 
 Venue is an MVVM-inspired ClojureScript framework for creating [single-page applications](https://en.wikipedia.org/wiki/Single-page_application). It uses Om, Secretary, DataScript and a handful of other CLJS libraries. It's opinionated and expects applications to adhere to the principles of [MVVM] (https://en.wikipedia.org/wiki/Model_View_ViewModel): databinding is provided by Om/React, models are ~~facilitated by DataScript~~ coming soon.
 
+[![Clojars Project](http://clojars.org/venue/latest-version.svg)](http://clojars.org/venue)
+
 ```clojure
 (ns test-app.core
   (:require [venue.core :as venue :include-macros true]

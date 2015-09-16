@@ -8,6 +8,7 @@ Venue is an MVVM-inspired ClojureScript framework for creating [single-page appl
 
 In order to use Figwheels auto-reload during development, you should call `(venue/on-js-reload)` inside your own `on-js-reload` function.
 
+## Example
 ```clojure
 (ns test-app.core
   (:require [venue.core :as venue :include-macros true]

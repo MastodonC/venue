@@ -44,6 +44,8 @@ In order to use Figwheels auto-reload during development, you should call `(venu
    :view-model test-app.menu.view-model/handler
    :state {}})
 
+(defn on-js-reload [] (venue/on-js-reload)) ;; for figwheel, hooked up in project.clj
+
 (venue/start!) ;; <-- don't forget this bit!
 ```
 This contrived example defines two views destined for the same target, based on different routes. It also defines a static view (always present, not subject to routing). Behind the curtain, venue will activate the appropriate view based on the current route. It will also send any events raised by that view to the applicable view-model for handling.

@@ -72,7 +72,7 @@ View-Models are just functions (the example uses a multi-method):
 
 ## Rationale
 
-The world of ClojureScript applications is still in the Triassic period. There is a selection of "preferred" utility libraries that seem to reoccur and be evolving quicker than the rest, and a few people have actually put out massively successful applications which rely on them. However, there's still a huge learning curve to understand all of these technologies, how they fit together and how to build a sensible application using them. At MastodonC we ~~have been through this~~ are going through this and so Venue is our attempt at providing a framework which helps.
+The world of ClojureScript applications is still in the Triassic period. There is a selection of "preferred" utility libraries that seem to reoccur and be evolving quicker than the rest, and a few people have actually put out [massively successful applications which rely on them](https://github.com/circleci/frontend). However, there's still a huge learning curve to understand all of these technologies, how they fit together and how to build a sensible application using them. At MastodonC we ~~have been through this~~ are going through this and so Venue is our attempt at providing a framework which helps.
 
 #### Why MVVM?
 

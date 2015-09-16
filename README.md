@@ -4,6 +4,10 @@ Venue is an MVVM-inspired ClojureScript framework for creating [single-page appl
 
 [![Clojars Project](http://clojars.org/venue/latest-version.svg)](http://clojars.org/venue)
 
+#### Notes when using Figwheel
+
+In order to use Figwheels auto-reload during development, you should call `(venue/on-js-reload)` inside your own `on-js-reload` function.
+
 ```clojure
 (ns test-app.core
   (:require [venue.core :as venue :include-macros true]
@@ -39,7 +43,7 @@ Venue is an MVVM-inspired ClojureScript framework for creating [single-page appl
    :view-model test-app.menu.view-model/handler
    :state {}})
 
-(venue/start!
+(venue/start!) ;; <-- don't forget this bit!
 ```
 This contrived example defines two views destined for the same target, based on different routes. It also defines a static view (always present, not subject to routing). Behind the curtain, venue will activate the appropriate view based on the current route. It will also send any events raised by that view to the applicable view-model for handling.
 

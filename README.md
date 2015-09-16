@@ -59,8 +59,9 @@ Views are just Om components (the example uses om-tools):
   (render [_]
           (html
            [:div
-           [:h1 (:text cursor)] ;; will display "Home Page"
-           [:button {:on-click #(venue/raise! owner :test-event "Clicked!")} "Change text"]])))
+             [:h1 (:text cursor)] ;; will display "Home Page"
+             [:a {:href (venue/get-route :views/submit {:query-params {:action "new")} "Submit New"] ;; will generate route from view id, i.e. '#/submit?action=new'
+             [:button {:on-click #(venue/raise! owner :test-event "Clicked!")} "Change text"]])))
 
 ```
 

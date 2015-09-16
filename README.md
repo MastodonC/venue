@@ -2,8 +2,6 @@
 
 Venue is an MVVM-inspired ClojureScript framework for creating [single-page applications](https://en.wikipedia.org/wiki/Single-page_application). It uses Om, Secretary, DataScript and a handful of other CLJS libraries. It's opinionated and expects applications to adhere to the principles of [MVVM] (https://en.wikipedia.org/wiki/Model_View_ViewModel): databinding is provided by Om/React, models are ~~facilitated by DataScript~~ coming soon.
 
-#### A route with a view
-
 ```clojure
 (ns test-app.core
   (:require [venue.core :as venue :include-macros true]
@@ -43,35 +41,47 @@ Venue is an MVVM-inspired ClojureScript framework for creating [single-page appl
 ```
 This contrived example defines two views destined for the same target, based on different routes. It also defines a static view (always present, not subject to routing). Behind the curtain, venue will activate the appropriate view based on the current route. It will also send any events raised by that view to the applicable view-model for handling.
 
+Views are just Om components (the example uses om-tools):
 
-## Setup
+```clojure
+;; test-app.home.view
+(defcomponent view
+  [cursor owner & opts]
+  (render [_]
+          (html
+           [:div
+           [:h1 (:text cursor)] ;; will display "Home Page"
+           [:button {:on-click #(venue/raise! owner :test-event "Clicked!")} "Change text"]])))
 
-To get an interactive development environment run:
+```
 
-    lein figwheel
+View-Models are just functions (the example uses a multi-method):
 
-and open your browser at [localhost:3449](http://localhost:3449/).
-This will auto compile and send all changes to the browser without the
-need to reload. After the compilation process is complete, you will
-get a Browser Connected REPL. An easy way to try it is:
+```clojure
+;; test-app.home.handler
+(defmulti handler
+  (fn [event args cursor] event))
 
-    (js/alert "Am I connected?")
+(defmethod handler
+  :test-event
+  [_ new-text cursor]
+  (om/update! cursor :text new-text))
+```
 
-and you should see an alert in the browser window.
+## Rationale
 
-To clean all compiled files:
+The world of ClojureScript applications is still in the Triassic period. There is a selection of "preferred" utility libraries that seem to reoccur and be evolving quicker than the rest, and a few people have actually put out massively successful applications which rely on them. However, there's still a huge learning curve to understand all of these technologies, how they fit together and how to build a sensible application using them. At MastodonC we ~~have been through this~~ are going through this and so Venue is our attempt at providing a framework which helps.
 
-    lein clean
+#### Why MVVM?
 
-To create a production build run:
-
-    lein cljsbuild once min
-
-And open your browser in `resources/public/index.html`. You will not
-get live reloading, nor a REPL.
+Why not? Just because this is 'new technology' doesn't mean the tales of old don't apply. MVVM helps (as do the whole MV*-family) answer a lot of questions regarding application architecture and as Om/React gives us a very easy way of data-binding (one of the core features of MVVM that is usually tough to do without a mature UI framework) it makes sense that we capitalise on that.
 
 ## License
 
-Copyright © 2014 FIXME
+Copyright © 2014 MastodonC
 
 Distributed under the Eclipse Public License either version 1.0 or (at your option) any later version.
+
+## Using Venue?
+
+Please let us know! support@mastodonc.com

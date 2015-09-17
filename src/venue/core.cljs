@@ -100,13 +100,6 @@
      (log-info "Navigating to " route)
      (set! (.. js/document -location -href) route))))
 
-(defn start!
-  []
-  (when (not (:started? @state))
-    (swap! state assoc :started? true)
-    (log-info "Starting up...")
-    (secretary/dispatch! js/window.location.hash)))
-
 (defn- launch-route!
   [location route-params]
   (let [venue-cursor (om/root-cursor venue-state)
@@ -198,6 +191,14 @@
 (defn- add-service!
   [{:keys [id handler]}]
   (swap! state assoc-in [:services id] handler))
+
+(defn start!
+  []
+  (when (not (:started? @state))
+    (swap! state assoc :started? true)
+    (log-info "Starting up...")
+    (launch-route! nil nil) ;; install statics
+    (secretary/dispatch! js/window.location.hash)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

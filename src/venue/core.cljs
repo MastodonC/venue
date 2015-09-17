@@ -167,7 +167,6 @@
     (throw (js/Error. (str "A route with id " id " already exists!"))))
 
   ;; check for new routes.
-  ;; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
   (when (not (contains? (route-list) route))
     (log-debug "Defining a route for " route)
     (defroute (str route) {:as params}

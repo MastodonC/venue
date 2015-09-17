@@ -14,5 +14,5 @@
             [:h3 {:style {:display "inline"}} "BLOG MENU | "]
             [:a {:href (venue/get-route :views/home)} "Read Blog"]
             [:span " | "]
-            [:a {:href (venue/get-route :views/submit)} "Submit Post"]
+            [:a {:href (venue/get-route :views/submit {:foo 123 :bar 456})} "Submit Post"]
             ])))

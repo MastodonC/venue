@@ -10,4 +10,6 @@
   (render [_]
           (html
            [:div
-            [:h2 (:text cursor)]])))
+            [:h2 (:text cursor)]
+            [:h3 (str "foo=" (:foo cursor))]
+            [:h3 (str "bar=" (:bar cursor))]])))

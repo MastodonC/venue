@@ -21,7 +21,7 @@
 
 (venue/defview!
   {:target "app"
-   :route "/submit"
+   :route "/submit/:foo/*bar"
    :id :views/submit
    :view example.submit.view/view
    :view-model example.submit.view-model/view-model

@@ -86,8 +86,9 @@
   ([id]
    (get-route id {}))
   ([id opts]
-   (let [route (->> id fixture-by-id :route)]
-     (secretary/render-route route opts))))
+   (if-let [route (->> id fixture-by-id :route)]
+     (secretary/render-route route opts)
+     (log-severe "get-route tried failed to find a fixture with the following id: " id))))
 
 (defn navigate!
   ([id]
@@ -107,8 +108,9 @@
     (secretary/dispatch! js/window.location.hash)))
 
 (defn- launch-route!
-  [location]
-  (let [venue-cursor (om/root-cursor venue-state)]
+  [location route-params]
+  (let [venue-cursor (om/root-cursor venue-state)
+        context    (:services @state)]
     ;; loop routes applicable to this location
     (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
       (if-let [target-element (. js/document (getElementById (name target)))]
@@ -116,18 +118,13 @@
           ;; if we're not installed, add an om/root
           (when (not (:installed? (get venue-cursor target)))
             (log-debug target " does not have an om/root. Installing now...")
-            (let [event-chan (chan chan-sz)
-                  context    (:services @state)]
+            (let [event-chan (chan chan-sz)]
               (om/root
                (fn
                  [cursor owner]
                  (reify
                    om/IWillUpdate
-                   (will-update [_ _ _]
-                     (let [{:keys [view-model state]} (get-current-fixture cursor)
-                           vm ((view-model) context)]
-                       (when (satisfies? IActivate vm)
-                         (activate vm nil state))))
+                   (will-update [_ _ _])
                    om/IWillMount
                    (will-mount [_]
                      (let [refresh-tap (tap refresh-mult (chan chan-sz))]
@@ -157,7 +154,16 @@
             (om/update! venue-cursor [target :installed?] true))
 
           ;; set the current state
+
+          ;; - activate vm
+          (let [{:keys [view-model]} (fixture-by-id id)
+                vm ((view-model) context)]
+            (when (satisfies? IActivate vm)
+              (activate vm route-params (-> venue-cursor target :fixtures id :state))))
+
+          ;; - write current id to state
           (om/update! venue-cursor [target :current] id))
+
         (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))
 
 (defn- add-view!
@@ -171,9 +177,9 @@
   ;; FIXME - statics are only brought up by launch-route! this clearly needs to change as no routing means no statics appear.
   (when (not (contains? (route-list) route))
     (log-debug "Defining a route for " route)
-    (defroute (str route) []
+    (defroute (str route) {:as params}
       (log-info "Routing " route)
-      (launch-route! route)))
+      (launch-route! route params)))
 
   ;; save the view
   (let [ktarget (keyword target)

@@ -26,7 +26,7 @@ In order to use Figwheels auto-reload during development, you should call `(venu
    :route "/"
    :id :views/home
    :view test-app.home.view/view
-   :view-model test-app.home.view-model/handler
+   :view-model test-app.home.view-model/view-model
    :state {:text "Home Page"}})
 
 (venue/defview!
@@ -34,14 +34,14 @@ In order to use Figwheels auto-reload during development, you should call `(venu
    :route "/submit"
    :id :views/submit
    :view test-app.submit.view/view
-   :view-model test-app.submit.view-model/handler
+   :view-model test-app.submit.view-model/view-model
    :state {:text "Submit Page"}})
 
 (venue/defstatic!
   {:target "menu"
    :id :static/menu
    :view test-app.menu.view/view
-   :view-model test-app.menu.view-model/handler
+   :view-model test-app.menu.view-model/view-model
    :state {}})
 
 (defn on-js-reload [] (venue/on-js-reload)) ;; for figwheel, hooked up in project.clj
@@ -65,17 +65,26 @@ Views are just Om components (the example uses om-tools):
 
 ```
 
-View-Models are just functions (the example uses a multi-method):
+View-Models are reify-ed functions, very similar to the way in which Om components are built:
 
 ```clojure
-;; test-app.home.handler
+;; test-app.home.view-model
 (defmulti handler
-  (fn [event args cursor] event))
+  (fn [event args cursor ctx] event))
 
 (defmethod handler
   :test-event
-  [_ new-text cursor]
+  [_ new-text cursor _]
   (om/update! cursor :text new-text))
+
+(defn view-model
+  [ctx]
+  (reify
+    venue/IHandleEvent
+    (handle-event [_ event args cursor]
+      (handler event args cursor ctx))
+    venue/IWillMount
+    (will-mount [_ args cursor]))))
 ```
 
 ## Rationale

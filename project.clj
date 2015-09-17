@@ -19,3 +19,7 @@
                               :compiler {:output-to "resources/public/js/testable.js"
                                          :main 'venue.test-runner
                                          :optimizations :none}}}})
+
+(comment
+  (do (use 'figwheel-sidecar.repl-api)
+      (cljs-repl)))

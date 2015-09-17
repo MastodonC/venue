@@ -14,7 +14,7 @@
    :route "/"
    :id :views/home
    :view example.home.view/view
-   :view-model example.home.view-model/handler
+   :view-model example.home.view-model/view-model
    :state {:text "Home Page"}})
 
 (venue/defview!
@@ -22,14 +22,14 @@
    :route "/submit"
    :id :views/submit
    :view example.submit.view/view
-   :view-model example.submit.view-model/handler
+   :view-model example.submit.view-model/view-model
    :state {:text "Submit Page"}})
 
 (venue/defstatic!
   {:target "menu"
    :id :static/menu
    :view example.menu.view/view
-   :view-model example.menu.view-model/handler
+   :view-model example.menu.view-model/view-model
    :state {}})
 
-(comment (venue/start!))
+(venue/start!)

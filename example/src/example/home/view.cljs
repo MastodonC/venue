@@ -14,7 +14,9 @@
             [:div
              [:h1 (:text cursor)]
              [:h2 "Welome to my blog"]
-             [:button {:on-click #(venue/raise! owner :test-event "This was changed by the view-model")} "Change title"]]
+             [:button {:on-click #(do
+                                    (venue/raise! owner :test-event "This was changed by the view-model")
+                                    (.preventDefault %))} "Change title"]]
             [:div
              [:input {:ref "email" :type "email" :placeholder "Email"}]
              [:input {:ref "password" :type "password" :placeholder "Password"}]

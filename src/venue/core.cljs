@@ -1,10 +1,9 @@
 (ns ^:figwheel-always venue.core
-    (:require [cljs.core.async :as async :refer [<! chan put! mult tap]]
+    (:require [cljs.core.async :refer [<! chan put! mult tap]]
               [om.core :as om :include-macros true]
               [om-tools.dom :as dom :include-macros true]
               [goog.events :as events]
               [goog.history.EventType :as EventType]
-              [schema.core :as s :include-macros true]
               [secretary.core :as secretary :refer-macros [defroute]])
     (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
                      [cljs-log.core :as log])
@@ -31,6 +30,13 @@
 (defn log-info   [& body] (log/info   log-prefix " " (apply str body)))
 (defn log-warn   [& body] (log/warn   log-prefix " " (apply str body)))
 (defn log-severe [& body] (log/severe log-prefix " " (apply str body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defprotocol IHandleEvent
+  (handle-event [this event args cursor]))
+(defprotocol IWillMount
+  (will-mount   [this args cursor]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -122,8 +128,10 @@
                          (while true
                            (let [e (<! event-chan)]
                              (let [current-id (:current @cursor)
-                                   {:keys [view-model state]} (current-id (:fixtures cursor))]
-                               (apply view-model (conj e state))))))))
+                                   {:keys [view-model state]} (current-id (:fixtures cursor))
+                                   vm (view-model (:services @venue-cursor))]
+                               (when (satisfies? IHandleEvent vm)
+                                 (apply (partial handle-event vm) (conj e state)))))))))
                    om/IRender
                    (render [_]
                      (if-let [current-id (:current cursor)]

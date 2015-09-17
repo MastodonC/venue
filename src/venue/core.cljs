@@ -9,11 +9,10 @@
                      [cljs-log.core :as log])
     (:import goog.History))
 
-(enable-console-print!)
-
 ;; state blobs
 (defonce venue-state (atom {}))
-(defonce state (atom {:started? false}))
+(defonce state (atom {:started? false
+                      :services {}}))
 
 ;; channels
 (defonce chan-sz 20)
@@ -68,6 +67,11 @@
          (map second)
          (filter #(or (and include-static? (:static %)) (= (:route %) location))))))
 
+(defn- get-current-fixture
+  [cursor]
+  (let [current-id (:current @cursor)]
+    (current-id (:fixtures cursor))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn raise!
@@ -112,16 +116,16 @@
           ;; if we're not installed, add an om/root
           (when (not (:installed? (get venue-cursor target)))
             (log-debug target " does not have an om/root. Installing now...")
-            (let [event-chan (chan chan-sz)]
+            (let [event-chan (chan chan-sz)
+                  context    (:services @state)]
               (om/root
                (fn
                  [cursor owner]
                  (reify
                    om/IWillUpdate
                    (will-update [_ _ _]
-                     (let [current-id (:current @cursor)
-                           {:keys [view-model state]} (current-id (:fixtures cursor))
-                           vm ((view-model) (:services venue-cursor))]
+                     (let [{:keys [view-model state]} (get-current-fixture cursor)
+                           vm ((view-model) context)]
                        (when (satisfies? IActivate vm)
                          (activate vm nil state))))
                    om/IWillMount
@@ -135,9 +139,8 @@
                        (go
                          (while true
                            (let [e (<! event-chan)]
-                             (let [current-id (:current @cursor)
-                                   {:keys [view-model state]} (current-id (:fixtures cursor))
-                                   vm ((view-model) (:services venue-cursor))]
+                             (let [{:keys [view-model state]} (get-current-fixture cursor)
+                                   vm ((view-model) context)]
                                (when (satisfies? IHandleEvent vm)
                                  (apply (partial handle-event vm) (conj e state)))))))))
                    om/IRender
@@ -185,6 +188,10 @@
     (swap! venue-state assoc-in [ktarget :fixtures id] (-> fixture
                                                            (assoc :target ktarget)
                                                            (assoc :static true)))))
+
+(defn- add-service!
+  [{:keys [id handler]}]
+  (swap! state assoc-in [:services id] handler))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

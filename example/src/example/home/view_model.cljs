@@ -9,8 +9,8 @@
 
 (defmethod handler
   :login
-  [_ {:keys [email password]} cursor]
-  (println "Logging in..." email password))
+  [_ {:keys [email password]} cursor ctx]
+  (log/debug "Logging in..." email password))
 
 (defmethod handler
   :test-event

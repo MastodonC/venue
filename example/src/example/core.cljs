@@ -6,7 +6,9 @@
             [example.submit.view]
             [example.submit.view-model]
             [example.menu.view]
-            [example.menu.view-model])
+            [example.menu.view-model]
+            ;;
+            [example.services.data])
   (:require-macros [cljs-log.core :as log]))
 
 (venue/defview!
@@ -31,6 +33,10 @@
    :view example.menu.view/view
    :view-model example.menu.view-model/view-model
    :state {}})
+
+(venue/defservice!
+  {:id :service/data
+   :handler example.services.data/handler})
 
 (venue/start!)
 

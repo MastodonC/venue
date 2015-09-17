@@ -28,3 +28,7 @@
            :view (cljs.core/fn [] ~view)
            :view-model (cljs.core/fn [] ~view-model)
            :state ~state})))))
+
+(defmacro defservice!
+  [service]
+  `(add-service! ~service))

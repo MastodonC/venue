@@ -1,4 +1,4 @@
-(defproject venue "0.1.1-SNAPSHOT"
+(defproject venue "0.1.1"
   :description "Experimental MVVM-like framework for ClojureScript"
   :url "https://github.com/mastodonc/venue"
   :license {:name "Eclipse Public License"
@@ -19,7 +19,3 @@
                               :compiler {:output-to "resources/public/js/testable.js"
                                          :main 'venue.test-runner
                                          :optimizations :none}}}})
-
-(comment
-  (do (use 'figwheel-sidecar.repl-api)
-      (cljs-repl)))

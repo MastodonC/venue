@@ -35,8 +35,9 @@
 
 (defprotocol IHandleEvent
   (handle-event [this event args cursor]))
-(defprotocol IWillMount
-  (will-mount   [this args cursor]))
+
+(defprotocol IActivate
+  (activate [this args cursor]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -116,6 +117,13 @@
                (fn
                  [cursor owner]
                  (reify
+                   om/IWillUpdate
+                   (will-update [_ _ _]
+                     (let [current-id (:current @cursor)
+                           {:keys [view-model state]} (current-id (:fixtures cursor))
+                           vm ((view-model) (:services venue-cursor))]
+                       (when (satisfies? IActivate vm)
+                         (activate vm nil state))))
                    om/IWillMount
                    (will-mount [_]
                      (let [refresh-tap (tap refresh-mult (chan chan-sz))]
@@ -129,7 +137,7 @@
                            (let [e (<! event-chan)]
                              (let [current-id (:current @cursor)
                                    {:keys [view-model state]} (current-id (:fixtures cursor))
-                                   vm (view-model (:services @venue-cursor))]
+                                   vm ((view-model) (:services venue-cursor))]
                                (when (satisfies? IHandleEvent vm)
                                  (apply (partial handle-event vm) (conj e state)))))))))
                    om/IRender

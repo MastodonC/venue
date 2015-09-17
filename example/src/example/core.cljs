@@ -33,3 +33,5 @@
    :state {}})
 
 (venue/start!)
+
+(defn on-js-reload [] (venue/on-js-reload))

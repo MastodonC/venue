@@ -14,6 +14,5 @@
     venue/IHandleEvent
     (handle-event [_ event args cursor]
       (handler event args cursor ctx))
-    venue/IWillMount
-    (will-mount [_ args cursor]
-      (log/info "WILL MOUNT CALLED"))))
+    venue/IActivate
+    (activate [_ args cursor])))

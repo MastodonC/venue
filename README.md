@@ -83,8 +83,8 @@ View-Models are reify-ed functions, very similar to the way in which Om componen
     venue/IHandleEvent
     (handle-event [_ event args cursor]
       (handler event args cursor ctx))
-    venue/IWillMount
-    (will-mount [_ args cursor]))))
+    venue/IActivate
+    (activate [_ args cursor]))))
 ```
 
 ## Rationale

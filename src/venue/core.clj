@@ -14,7 +14,7 @@
            :route ~route
            :id ~id
            :view (cljs.core/fn [] ~view)
-           :view-model ~view-model
+           :view-model (cljs.core/fn [] ~view-model)
            :state ~state})))))
 
 (defmacro defstatic!
@@ -26,5 +26,5 @@
           {:target ~target
            :id ~id
            :view (cljs.core/fn [] ~view)
-           :view-model ~view-model
+           :view-model (cljs.core/fn [] ~view-model)
            :state ~state})))))

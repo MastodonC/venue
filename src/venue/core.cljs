@@ -1,5 +1,5 @@
 (ns ^:figwheel-always venue.core
-    (:require [cljs.core.async :refer [<! chan put! mult tap]]
+    (:require [cljs.core.async :refer [<! chan put! mult tap timeout]]
               [om.core :as om :include-macros true]
               [om-tools.dom :as dom :include-macros true]
               [goog.events :as events]
@@ -27,10 +27,10 @@
 (secretary/set-config! :prefix "#")
 
 ;; log prefix helpers
-(defn log-debug  [& body] (log/debug  log-prefix " " (apply str body)))
-(defn log-info   [& body] (log/info   log-prefix " " (apply str body)))
-(defn log-warn   [& body] (log/warn   log-prefix " " (apply str body)))
-(defn log-severe [& body] (log/severe log-prefix " " (apply str body)))
+(defn log-debug  [& body] (log/debug  log-prefix " " (apply str (interpose " " body))))
+(defn log-info   [& body] (log/info   log-prefix " " (apply str (interpose " " body))))
+(defn log-warn   [& body] (log/warn   log-prefix " " (apply str (interpose " " body))))
+(defn log-severe [& body] (log/severe log-prefix " " (apply str (interpose " " body))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -38,7 +38,7 @@
   (handle-event [this event args cursor]))
 
 (defprotocol IHandleResponse
-  (handle-response [this outcome event data]))
+  (handle-response [this outcome event response cursor]))
 
 (defprotocol IActivate
   (activate [this args cursor]))
@@ -76,6 +76,15 @@
   [cursor]
   (let [current-id (:current @cursor)]
     (current-id (:fixtures cursor))))
+
+(defn- fixture-by-cursor
+  [cursor]
+  (->> @venue-state
+       (map val)
+       (mapcat :fixtures)
+       (map second)
+       (filter #(= (:state %) @cursor))
+       first))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -169,15 +178,20 @@
 
 (defn- start-service-loop!
   []
-  (go-loop [[caller service-id req-id args] (<! service-request-ch)]
+  (go-loop [[caller cursor service-id req-id args] (<! service-request-ch)]
     (if-let [service (get-in @state [:services service-id])]
-      ;; this might want 'more async' as the service loop will block while the service does it's thang.
-      (do
-        (log/debug "Received service request:" service-id req-id)
-        (let [[outcome data] (service req-id args)]
-          (when (satisfies? IHandleResponse caller)
-            (handle-response caller outcome req-id data))))
-      (log/severe "A request was sent to an unknown service: " service-id))
+      (let [c (chan)
+            to (timeout 5000)
+            rfn (fn [caller outcome req-id data cursor]
+                  (when (satisfies? IHandleResponse caller)
+                    (handle-response caller outcome req-id data cursor)))]
+        (log-debug "Received service request:" service-id req-id)
+        (go
+          (alt!
+            c  ([[outcome data]] (rfn caller outcome req-id data cursor))
+            to ([_] (rfn caller :failure req-id "The service request timed out" cursor))))
+        (service req-id args c))
+      (log-severe "A request was sent to an unknown service: " service-id))
     (recur (<! service-request-ch))))
 
 (defn- add-service!
@@ -196,10 +210,12 @@
      (put! c [event args]))))
 
 (defn request!
-  ([caller service id]
-   (request! caller service id {}))
-  ([caller service id args]
-   (put! service-request-ch [caller service id args])))
+  ([cursor service id]
+   (request! cursor service id {}))
+  ([cursor service id args]
+   (let [{:keys [view-model]} (fixture-by-cursor cursor)
+         vm ((view-model))]
+     (put! service-request-ch [vm cursor service id args]))))
 
 (defn get-route
   ([id]
@@ -207,7 +223,7 @@
   ([id opts]
    (if-let [route (->> id fixture-by-id :route)]
      (secretary/render-route route opts)
-     (log-severe "get-route tried failed to find a fixture with the following id: " id))))
+     (log-severe "get-route tried failed to find a fixture with the following id:" id))))
 
 (defn navigate!
   ([id]

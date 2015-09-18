@@ -4,24 +4,45 @@
               [venue.core :as venue])
     (:require-macros [cljs-log.core :as log]))
 
-(defmulti handler
-  (fn [event args cursor ctx] event))
+(defmulti event-handler
+  (fn [event this args cursor] event))
 
-(defmethod handler
+(defmulti response-handler
+  (fn [result data] result))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmethod event-handler
   :login
-  [_ {:keys [email password]} cursor ctx]
-  (log/debug "Logging in..." email password))
+  [_ this {:keys [email password] :as login-args} cursor]
+  (log/debug "Logging in..." email password)
+  (venue/request! this :service/data :login login-args))
 
-(defmethod handler
+(defmethod event-handler
   :test-event
-  [_ new-text cursor _]
+  [_ this new-text cursor]
   (om/update! cursor :text new-text))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmethod response-handler
+  [:login :success]
+  [_ data]
+  (log/debug "RESPONSE HANDLER SUCCESS"))
+
+(defmethod response-handler
+  [:login :failure]
+  [_ data]
+  (log/debug "RESPONSE HANDLER FAILURE"))
+
 (defn view-model
-  [ctx]
+  []
   (reify
     venue/IHandleEvent
-    (handle-event [_ event args cursor]
-      (handler event args cursor ctx))
+    (handle-event [this event args cursor]
+      (event-handler event this args cursor))
+    venue/IHandleResponse
+    (handle-response [this outcome event data]
+      (response-handler [event outcome] data))
     venue/IActivate
     (activate [_ args cursor])))

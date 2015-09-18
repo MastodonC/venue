@@ -12,12 +12,14 @@
 ;; state blobs
 (defonce venue-state (atom {}))
 (defonce state (atom {:started? false
+                      :service-loop? false
                       :services {}}))
 
 ;; channels
 (defonce chan-sz 20)
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
+(defonce service-request-ch (chan chan-sz))
 
 ;; other vars
 (defonce history (History.))
@@ -35,12 +37,15 @@
 (defprotocol IHandleEvent
   (handle-event [this event args cursor]))
 
+(defprotocol IHandleResponse
+  (handle-response [this outcome event data]))
+
 (defprotocol IActivate
   (activate [this args cursor]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn fixture-by-id
+(defn- fixture-by-id
   [id]
   (->> @venue-state
        (map val)
@@ -49,7 +54,7 @@
        (reduce conj)
        id))
 
-(defn route-list
+(defn- route-list
   []
   (->> @venue-state
        (map val)
@@ -58,7 +63,7 @@
        (map :route)
        set))
 
-(defn filter-fixtures
+(defn- filter-fixtures
   [location opts]
   (let [{:keys [include-static?] :or {include-static? false}} opts]
     (->> @venue-state
@@ -74,36 +79,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn raise!
-  [owner event data]
-  (let [c (om/get-shared owner [:event-chan])]
-    (put! c [event data])))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-(defn get-route
-  ([id]
-   (get-route id {}))
-  ([id opts]
-   (if-let [route (->> id fixture-by-id :route)]
-     (secretary/render-route route opts)
-     (log-severe "get-route tried failed to find a fixture with the following id: " id))))
-
-(defn navigate!
-  ([id]
-   (navigate! id {}))
-  ([id opts]
-   (let [route (get-route id opts)]
-     (if (:static route)
-       (throw (js/Error. "Cannot navigate to a static fixture!")))
-     (log-info "Navigating to " route)
-     (set! (.. js/document -location -href) route))))
-
 (defn- launch-route!
   [location route-params]
-  (let [venue-cursor (om/root-cursor venue-state)
-        context    (:services @state)]
+  (let [venue-cursor (om/root-cursor venue-state)]
     ;; loop routes applicable to this location
     (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
       (if-let [target-element (. js/document (getElementById (name target)))]
@@ -125,14 +103,16 @@
                        (go
                          (while true
                            (let [_ (<! refresh-tap)]
-                             (om/refresh! owner))))
-                       (go
-                         (while true
-                           (let [e (<! event-chan)]
-                             (let [{:keys [view-model state]} (get-current-fixture cursor)
-                                   vm ((view-model) context)]
-                               (when (satisfies? IHandleEvent vm)
-                                 (apply (partial handle-event vm) (conj e state)))))))))
+                             (om/refresh! owner)))))
+                     ;; FIXME there's something in this go block that upsets the compiler:
+                     ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
+                     (go
+                       (while true
+                         (let [e (<! event-chan)]
+                           (let [{:keys [view-model state]} (get-current-fixture cursor)
+                                 vm ((view-model))]
+                             (when (satisfies? IHandleEvent vm)
+                               (apply (partial handle-event vm) (conj e state))))))))
                    om/IRender
                    (render [_]
                      (if-let [current-id (:current cursor)]
@@ -150,7 +130,7 @@
 
           ;; - activate vm
           (let [{:keys [view-model]} (fixture-by-id id)
-                vm ((view-model) context)]
+                vm ((view-model))]
             (when (satisfies? IActivate vm)
               (activate vm route-params (-> venue-cursor target :fixtures id :state))))
 
@@ -187,9 +167,57 @@
                                                            (assoc :target ktarget)
                                                            (assoc :static true)))))
 
+(defn- start-service-loop!
+  []
+  (go-loop [[caller service-id req-id args] (<! service-request-ch)]
+    (if-let [service (get-in @state [:services service-id])]
+      ;; this might want 'more async' as the service loop will block while the service does it's thang.
+      (do
+        (log/debug "Received service request:" service-id req-id)
+        (let [[outcome data] (service req-id args)]
+          (when (satisfies? IHandleResponse caller)
+            (handle-response caller outcome req-id data))))
+      (log/severe "A request was sent to an unknown service: " service-id))
+    (recur (<! service-request-ch))))
+
 (defn- add-service!
   [{:keys [id handler]}]
-  (swap! state assoc-in [:services id] handler))
+  (swap! state assoc-in [:services id] handler)
+
+  (when (not (:service-loop? @state))
+    (swap! state assoc :service-loop? true)
+    (start-service-loop!)))
+
+(defn raise!
+  ([owner event]
+   (raise! owner event {}))
+  ([owner event args]
+   (let [c (om/get-shared owner [:event-chan])]
+     (put! c [event args]))))
+
+(defn request!
+  ([caller service id]
+   (request! caller service id {}))
+  ([caller service id args]
+   (put! service-request-ch [caller service id args])))
+
+(defn get-route
+  ([id]
+   (get-route id {}))
+  ([id opts]
+   (if-let [route (->> id fixture-by-id :route)]
+     (secretary/render-route route opts)
+     (log-severe "get-route tried failed to find a fixture with the following id: " id))))
+
+(defn navigate!
+  ([id]
+   (navigate! id {}))
+  ([id opts]
+   (let [route (get-route id opts)]
+     (if (:static route)
+       (throw (js/Error. "Cannot navigate to a static fixture!")))
+     (log-info "Navigating to " route)
+     (set! (.. js/document -location -href) route))))
 
 (defn start!
   []

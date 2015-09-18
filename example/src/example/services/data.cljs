@@ -1,3 +1,8 @@
 (ns example.services.data)
 
-(defn handler [] "foo")
+(defmulti handler (fn [event args] event))
+
+(defmethod handler
+  :login
+  [_ args]
+  [:success {:token "foobar"}])

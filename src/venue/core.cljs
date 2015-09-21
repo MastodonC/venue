@@ -9,9 +9,6 @@
                      [cljs-log.core :as log])
     (:import goog.History))
 
-;; FIXME This is a horrid, temporary fix for the compiler complaints. See below (install-om!).
-(declare bit__16711__auto__)
-
 ;; state blobs
 (defonce venue-state (atom {}))
 (defonce state (atom {:started? false
@@ -105,19 +102,19 @@
          (will-mount [_]
            (let [refresh-tap (tap refresh-mult (chan chan-sz))]
              ;; loop for refresh
-             (go
-               (while true
-                 (let [_ (<! refresh-tap)]
-                   (om/refresh! owner)))))
+             (go-loop []
+               (let [_ (<! refresh-tap)]
+                 (om/refresh! owner))
+               (recur)))
            ;; FIXME there's something in this go block that upsets the compiler:
            ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
-           (go
-             (while true
-               (let [e (<! event-chan)
-                     {:keys [view-model state]} (get-current-fixture cursor)
-                     vm ((view-model))]
-                 (when (satisfies? IHandleEvent vm)
-                   (apply (partial handle-event vm) (conj e state)))))))
+           (go-loop []
+             (let [e (<! event-chan)
+                   {:keys [view-model state]} (get-current-fixture cursor)
+                   vm ((view-model))]
+               (when (satisfies? IHandleEvent vm)
+                 (apply (partial handle-event vm) (conj e state))))
+             (recur)))
          om/IRender
          (render [_]
            (if-let [current-id (:current cursor)]

@@ -113,8 +113,8 @@
                (let [e (<! event-chan)]
                  (let [{:keys [view-model state]} (get-current-fixture cursor)
                        vm ((view-model))]
-                   (comment (when (satisfies? IHandleEvent vm)
-                              (apply (partial handle-event vm) (conj e state)))))))))
+                   (when (satisfies? IHandleEvent vm)
+                     (apply (partial handle-event vm) (conj e state))))))))
          om/IRender
          (render [_]
            (if-let [current-id (:current cursor)]

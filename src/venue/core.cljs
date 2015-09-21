@@ -1,5 +1,5 @@
 (ns ^:figwheel-always venue.core
-    (:require [cljs.core.async :refer [<! chan put! mult tap timeout]]
+    (:require [cljs.core.async :refer [<! chan put! mult tap timeout pub sub unsub unsub-all]]
               [om.core :as om :include-macros true]
               [om-tools.dom :as dom :include-macros true]
               [goog.events :as events]
@@ -20,6 +20,8 @@
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
 (defonce service-request-ch (chan chan-sz))
+(defonce msgbus-publisher (chan))
+(defonce msgbus-publication (pub msgbus-publisher #(:topic %)))
 
 ;; other vars
 (defonce history (History.))
@@ -77,6 +79,13 @@
   (let [current-id (:current @cursor)]
     (current-id (:fixtures cursor))))
 
+(defn- get-current-fixtures
+  []
+  (->> @venue-state
+       (map val)
+       (map #(let [current (:current %)]
+               (-> % :fixtures current)))))
+
 (defn- fixture-by-cursor
   [cursor]
   (->> @venue-state
@@ -87,6 +96,23 @@
        first))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn subscribe!
+  [topic ch]
+  (sub msgbus-publication topic ch))
+
+(defn unsubscribe!
+  [topic ch]
+  (unsub msgbus-publication topic ch))
+
+(defn publish!
+  [topic content]
+  (let [payload {:topic topic :content content}]
+    (log-debug "Message bus publish: " payload)
+    (go (>! msgbus-publisher payload))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 (defn- install-om!
   [target target-element venue-cursor]
@@ -244,6 +270,10 @@
     (log-info "Starting up...")
     (launch-route! nil nil) ;; install statics
     (secretary/dispatch! js/window.location.hash)))
+
+(defn reactivate!
+  []
+  (secretary/dispatch! js/window.location.hash))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

@@ -4,15 +4,27 @@
               [venue.core :as venue])
     (:require-macros [cljs-log.core :as log]))
 
-(defn handler
-  [event args cursor ctx]
-  (println "Got event" event))
+(defmulti event-handler
+  (fn [event args cursor] event))
+
+(defmulti response-handler
+  (fn [result response cursor] result))
 
 (defn view-model
-  [ctx]
+  []
   (reify
     venue/IHandleEvent
-    (handle-event [_ event args cursor]
-      (handler event args cursor ctx))
+    (handle-event [owner event args cursor]
+      (event-handler event args cursor))
+    venue/IHandleResponse
+    (handle-response [owner outcome event response cursor]
+      (response-handler [event outcome] response cursor))
     venue/IActivate
-    (activate [_ args cursor])))
+    (activate [owner args cursor])))
+
+;;;;;;;;;;;;
+
+(defmethod event-handler
+  :default
+  [_ _ _]
+  (log/debug "Hello from the menu"))

@@ -88,6 +88,46 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn- install-om!
+  [target target-element venue-cursor]
+  (log-debug target " does not have an om/root. Installing now...")
+  (let [event-chan (chan chan-sz)]
+    (om/root
+     (fn
+       [cursor owner]
+       (reify
+         om/IWillUpdate
+         (will-update [_ _ _])
+         om/IWillMount
+         (will-mount [_]
+           (let [refresh-tap (tap refresh-mult (chan chan-sz))]
+             ;; loop for refresh
+             (go
+               (while true
+                 (let [_ (<! refresh-tap)]
+                   (om/refresh! owner)))))
+           ;; FIXME there's something in this go block that upsets the compiler:
+           ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
+           (go
+             (while true
+               (let [e (<! event-chan)]
+                 (let [{:keys [view-model state]} (get-current-fixture cursor)
+                       vm ((view-model))]
+                   (comment (when (satisfies? IHandleEvent vm)
+                              (apply (partial handle-event vm) (conj e state)))))))))
+         om/IRender
+         (render [_]
+           (if-let [current-id (:current cursor)]
+             (let [{:keys [view state]} (current-id (:fixtures cursor))]
+               (dom/div nil
+                        (if view
+                          (om/build (view) state))))))))
+     venue-state
+     {:target target-element
+      :path [target]
+      :shared {:event-chan event-chan}}))
+  (om/update! venue-cursor [target :installed?] true))
+
 (defn- launch-route!
   [location route-params]
   (let [venue-cursor (om/root-cursor venue-state)]
@@ -97,53 +137,15 @@
         (do
           ;; if we're not installed, add an om/root
           (when (not (:installed? (get venue-cursor target)))
-            (log-debug target " does not have an om/root. Installing now...")
-            (let [event-chan (chan chan-sz)]
-              (om/root
-               (fn
-                 [cursor owner]
-                 (reify
-                   om/IWillUpdate
-                   (will-update [_ _ _])
-                   om/IWillMount
-                   (will-mount [_]
-                     (let [refresh-tap (tap refresh-mult (chan chan-sz))]
-                       ;; loop for refresh
-                       (go
-                         (while true
-                           (let [_ (<! refresh-tap)]
-                             (om/refresh! owner)))))
-                     ;; FIXME there's something in this go block that upsets the compiler:
-                     ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
-                     (go
-                       (while true
-                         (let [e (<! event-chan)]
-                           (let [{:keys [view-model state]} (get-current-fixture cursor)
-                                 vm ((view-model))]
-                             (when (satisfies? IHandleEvent vm)
-                               (apply (partial handle-event vm) (conj e state))))))))
-                   om/IRender
-                   (render [_]
-                     (if-let [current-id (:current cursor)]
-                       (let [{:keys [view state]} (current-id (:fixtures cursor))]
-                         (dom/div nil
-                                  (if view
-                                    (om/build (view) state))))))))
-               venue-state
-               {:target target-element
-                :path [target]
-                :shared {:event-chan event-chan}}))
-            (om/update! venue-cursor [target :installed?] true))
+            (install-om! target target-element venue-cursor))
 
-          ;; set the current state
-
-          ;; - activate vm
+          ;; activate vm
           (let [{:keys [view-model]} (fixture-by-id id)
                 vm ((view-model))]
             (when (satisfies? IActivate vm)
               (activate vm route-params (-> venue-cursor target :fixtures id :state))))
 
-          ;; - write current id to state
+          ;; write current id to state
           (om/update! venue-cursor [target :current] id))
 
         (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))

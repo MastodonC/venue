@@ -1,27 +1,49 @@
 (ns ^:figwheel-always example.home.view-model
     (:require [om.core :as om :include-macros true]
               [schema.core :as s :include-macros true]
-              [venue.core :as venue])
+              [venue.core :as venue :include-macros true])
     (:require-macros [cljs-log.core :as log]))
 
-(defmulti handler
-  (fn [event args cursor ctx] event))
+(defmulti event-handler
+  (fn [event args cursor] event))
 
-(defmethod handler
-  :login
-  [_ {:keys [email password]} cursor ctx]
-  (log/debug "Logging in..." email password))
-
-(defmethod handler
-  :test-event
-  [_ new-text cursor _]
-  (om/update! cursor :text new-text))
+(defmulti response-handler
+  (fn [result response cursor] result))
 
 (defn view-model
-  [ctx]
+  []
   (reify
     venue/IHandleEvent
-    (handle-event [_ event args cursor]
-      (handler event args cursor ctx))
+    (handle-event [owner event args cursor]
+      (event-handler event args cursor))
+    venue/IHandleResponse
+    (handle-response [owner outcome event response cursor]
+      (response-handler [event outcome] response cursor))
     venue/IActivate
-    (activate [_ args cursor])))
+    (activate [owner args cursor])))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmethod event-handler
+  :login
+  [_ {:keys [email password] :as login-args} cursor]
+  (log/debug "Logging in..." email password)
+  (venue/request! cursor :service/data :login login-args))
+
+(defmethod event-handler
+  :test-event
+  [_ new-text cursor]
+  (om/update! cursor :text new-text))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmethod response-handler
+  [:login :success]
+  [_ response cursor]
+  (log/debug "RESPONSE HANDLER SUCCESS"))
+
+(defmethod response-handler
+  [:login :failure]
+  [_ response cursor]
+  (log/debug "RESPONSE HANDLER FAILURE:" response))

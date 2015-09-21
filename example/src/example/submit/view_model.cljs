@@ -15,4 +15,6 @@
     (handle-event [_ event args cursor]
       (handler event args cursor ctx))
     venue/IActivate
-    (activate [_ args cursor])))
+    (activate [_ {:keys [foo bar]} cursor]
+      (om/update! cursor :foo foo)
+      (om/update! cursor :bar bar))))

@@ -9,6 +9,9 @@
                      [cljs-log.core :as log])
     (:import goog.History))
 
+;; FIXME This is a horrid, temporary fix for the compiler complaints. See below (install-om!).
+(declare bit__16711__auto__)
+
 ;; state blobs
 (defonce venue-state (atom {}))
 (defonce state (atom {:started? false
@@ -110,11 +113,11 @@
            ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
            (go
              (while true
-               (let [e (<! event-chan)]
-                 (let [{:keys [view-model state]} (get-current-fixture cursor)
-                       vm ((view-model))]
-                   (when (satisfies? IHandleEvent vm)
-                     (apply (partial handle-event vm) (conj e state))))))))
+               (let [e (<! event-chan)
+                     {:keys [view-model state]} (get-current-fixture cursor)
+                     vm ((view-model))]
+                 (when (satisfies? IHandleEvent vm)
+                   (apply (partial handle-event vm) (conj e state)))))))
          om/IRender
          (render [_]
            (if-let [current-id (:current cursor)]
@@ -154,7 +157,7 @@
   [{:keys [target view view-model id state route] :as fix}]
 
   ;; FIXME perhaps we do something other than throw here?
-  (if (fixture-by-id id)
+  (if (fixture-by-id id)g
     (throw (js/Error. (str "A route with id " id " already exists!"))))
 
   ;; check for new routes.

@@ -157,7 +157,7 @@
   [{:keys [target view view-model id state route] :as fix}]
 
   ;; FIXME perhaps we do something other than throw here?
-  (if (fixture-by-id id)g
+  (if (fixture-by-id id)
     (throw (js/Error. (str "A route with id " id " already exists!"))))
 
   ;; check for new routes.

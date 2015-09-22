@@ -45,6 +45,9 @@
 (defprotocol IActivate
   (activate [this args cursor]))
 
+(defprotocol IInitialise
+  (initialise [this cursor]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn- fixture-by-id
@@ -106,10 +109,12 @@
   (unsub msgbus-publication topic ch))
 
 (defn publish!
-  [topic content]
-  (let [payload {:topic topic :content content}]
-    (log-debug "Message bus publish: " payload)
-    (go (>! msgbus-publisher payload))))
+  ([topic]
+   (publish! topic nil))
+  ([topic content]
+   (let [payload {:topic topic :content content}]
+     (log-debug "Message bus publish: " payload)
+     (go (>! msgbus-publisher payload)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -165,11 +170,16 @@
           (when (not (:installed? (get venue-cursor target)))
             (install-om! target target-element venue-cursor))
 
-          ;; activate vm
-          (let [{:keys [view-model]} (fixture-by-id id)
-                vm ((view-model))]
+          ;; init/activate vm
+          (let [{:keys [view-model has-init?]} (fixture-by-id id)
+                vm ((view-model))
+                state (-> venue-cursor target :fixtures id :state)]
+            (when (not has-init?)
+              (om/update! venue-cursor [target :fixtures id :has-init?] true)
+              (when (satisfies? IInitialise vm)
+                (initialise vm state)))
             (when (satisfies? IActivate vm)
-              (activate vm route-params (-> venue-cursor target :fixtures id :state))))
+              (activate vm route-params state)))
 
           ;; write current id to state
           (om/update! venue-cursor [target :current] id))
@@ -206,21 +216,24 @@
 
 (defn- start-service-loop!
   []
-  (go-loop [[caller cursor service-id req-id args] (<! service-request-ch)]
-    (if-let [service (get-in @state [:services service-id])]
-      (let [c (chan)
-            to (timeout 5000)
-            rfn (fn [caller outcome req-id data cursor]
-                  (when (satisfies? IHandleResponse caller)
-                    (handle-response caller outcome req-id data cursor)))]
-        (log-debug "Received service request:" service-id req-id)
-        (go
-          (alt!
-            c  ([[outcome data]] (rfn caller outcome req-id data cursor))
-            to ([_] (rfn caller :failure req-id "The service request timed out" cursor))))
-        (service req-id args c))
-      (log-severe "A request was sent to an unknown service: " service-id))
-    (recur (<! service-request-ch))))
+  (go-loop []
+    (let [[caller cursor service-id req-id args] (<! service-request-ch)]
+      (if-let [service (get-in @state [:services service-id])]
+        (let [c (chan)
+              to (timeout 5000)
+              rfn (fn [caller outcome req-id data cursor]
+                    (when (satisfies? IHandleResponse caller)
+                      (handle-response caller outcome req-id data cursor)))]
+          (log-debug "Received service request:" service-id req-id)
+          (go
+            (alt!
+              c  ([[outcome data]] (rfn caller outcome req-id data cursor))
+              to ([_] (do
+                        (log-warn "A service request timed out:" service-id req-id)
+                        (rfn caller :failure req-id "The service request timed out" cursor)))))
+          (service req-id args c))
+        (log-severe "A request was sent to an unknown service: " service-id)))
+    (recur)))
 
 (defn- add-service!
   [{:keys [id handler]}]

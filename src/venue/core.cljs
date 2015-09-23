@@ -203,8 +203,7 @@
   (let [ktarget (keyword target)
         mfix (-> fix
                  (assoc :target ktarget)
-                 (assoc :static false)
-                 (update :state #(merge % {:__v_id id})))]
+                 (assoc :static false))]
     (swap! venue-state assoc-in [ktarget :fixtures id] mfix)))
 
 (defn- add-static-view!
@@ -212,8 +211,7 @@
   (let [ktarget (keyword target)]
     (swap! venue-state assoc-in [ktarget :fixtures id] (-> fixture
                                                            (assoc :target ktarget)
-                                                           (assoc :static true)
-                                                           (update :state #(merge % {:__v_id id}))))))
+                                                           (assoc :static true)))))
 
 (defn- start-service-loop!
   []

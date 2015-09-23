@@ -1,5 +1,5 @@
 (ns ^:figwheel-always venue.core
-    (:require [cljs.core.async :refer [<! chan put! mult tap timeout]]
+    (:require [cljs.core.async :refer [<! chan put! mult tap timeout pub sub unsub unsub-all]]
               [om.core :as om :include-macros true]
               [om-tools.dom :as dom :include-macros true]
               [goog.events :as events]
@@ -8,9 +8,6 @@
     (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
                      [cljs-log.core :as log])
     (:import goog.History))
-
-;; FIXME This is a horrid, temporary fix for the compiler complaints. See below (install-om!).
-(declare bit__16711__auto__)
 
 ;; state blobs
 (defonce venue-state (atom {}))
@@ -23,6 +20,8 @@
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
 (defonce service-request-ch (chan chan-sz))
+(defonce msgbus-publisher (chan chan-sz))
+(defonce msgbus-publication (pub msgbus-publisher #(:topic %)))
 
 ;; other vars
 (defonce history (History.))
@@ -45,6 +44,9 @@
 
 (defprotocol IActivate
   (activate [this args cursor]))
+
+(defprotocol IInitialise
+  (initialise [this cursor]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -80,6 +82,13 @@
   (let [current-id (:current @cursor)]
     (current-id (:fixtures cursor))))
 
+(defn- get-current-fixtures
+  []
+  (->> @venue-state
+       (map val)
+       (map #(let [current (:current %)]
+               (-> % :fixtures current)))))
+
 (defn- fixture-by-cursor
   [cursor]
   (->> @venue-state
@@ -90,6 +99,25 @@
        first))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn subscribe!
+  [topic ch]
+  (sub msgbus-publication topic ch))
+
+(defn unsubscribe!
+  [topic ch]
+  (unsub msgbus-publication topic ch))
+
+(defn publish!
+  ([topic]
+   (publish! topic nil))
+  ([topic content]
+   (let [payload {:topic topic :content content}]
+     (log-debug "Message bus publish: " payload)
+     (go (>! msgbus-publisher payload)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 (defn- install-om!
   [target target-element venue-cursor]
@@ -105,19 +133,19 @@
          (will-mount [_]
            (let [refresh-tap (tap refresh-mult (chan chan-sz))]
              ;; loop for refresh
-             (go
-               (while true
-                 (let [_ (<! refresh-tap)]
-                   (om/refresh! owner)))))
+             (go-loop []
+               (let [_ (<! refresh-tap)]
+                 (om/refresh! owner))
+               (recur)))
            ;; FIXME there's something in this go block that upsets the compiler:
            ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
-           (go
-             (while true
-               (let [e (<! event-chan)
-                     {:keys [view-model state]} (get-current-fixture cursor)
-                     vm ((view-model))]
-                 (when (satisfies? IHandleEvent vm)
-                   (apply (partial handle-event vm) (conj e state)))))))
+           (go-loop []
+             (let [e (<! event-chan)
+                   {:keys [view-model state]} (get-current-fixture cursor)
+                   vm ((view-model))]
+               (when (satisfies? IHandleEvent vm)
+                 (apply (partial handle-event vm) (conj e state))))
+             (recur)))
          om/IRender
          (render [_]
            (if-let [current-id (:current cursor)]
@@ -142,11 +170,16 @@
           (when (not (:installed? (get venue-cursor target)))
             (install-om! target target-element venue-cursor))
 
-          ;; activate vm
-          (let [{:keys [view-model]} (fixture-by-id id)
-                vm ((view-model))]
+          ;; init/activate vm
+          (let [{:keys [view-model has-init?]} (fixture-by-id id)
+                vm ((view-model))
+                state (-> venue-cursor target :fixtures id :state)]
+            (when-not has-init?
+              (om/update! venue-cursor [target :fixtures id :has-init?] true)
+              (when (satisfies? IInitialise vm)
+                (initialise vm state)))
             (when (satisfies? IActivate vm)
-              (activate vm route-params (-> venue-cursor target :fixtures id :state))))
+              (activate vm route-params state)))
 
           ;; write current id to state
           (om/update! venue-cursor [target :current] id))
@@ -183,21 +216,24 @@
 
 (defn- start-service-loop!
   []
-  (go-loop [[caller cursor service-id req-id args] (<! service-request-ch)]
-    (if-let [service (get-in @state [:services service-id])]
-      (let [c (chan)
-            to (timeout 5000)
-            rfn (fn [caller outcome req-id data cursor]
-                  (when (satisfies? IHandleResponse caller)
-                    (handle-response caller outcome req-id data cursor)))]
-        (log-debug "Received service request:" service-id req-id)
-        (go
-          (alt!
-            c  ([[outcome data]] (rfn caller outcome req-id data cursor))
-            to ([_] (rfn caller :failure req-id "The service request timed out" cursor))))
-        (service req-id args c))
-      (log-severe "A request was sent to an unknown service: " service-id))
-    (recur (<! service-request-ch))))
+  (go-loop []
+    (let [{:keys [caller cursor service-id req-id args]} (<! service-request-ch)]
+      (if-let [service (get-in @state [:services service-id])]
+        (let [c (chan)
+              to (timeout 5000)
+              rfn (fn [caller outcome req-id data cursor]
+                    (when (satisfies? IHandleResponse caller)
+                      (handle-response caller outcome req-id data cursor)))]
+          (log-debug "Received service request:" service-id req-id)
+          (go
+            (alt!
+              c  ([[outcome data]] (rfn caller outcome req-id data cursor))
+              to ([_] (do
+                        (log-warn "A service request timed out:" service-id req-id)
+                        (rfn caller :failure req-id "The service request timed out" cursor)))))
+          (service req-id args c))
+        (log-severe "A request was sent to an unknown service: " service-id)))
+    (recur)))
 
 (defn- add-service!
   [{:keys [id handler]}]
@@ -220,7 +256,7 @@
   ([cursor service id args]
    (let [{:keys [view-model]} (fixture-by-cursor cursor)
          vm ((view-model))]
-     (put! service-request-ch [vm cursor service id args]))))
+     (put! service-request-ch {:caller vm :cursor cursor :service-id service :req-id id :args args}))))
 
 (defn get-route
   ([id]
@@ -247,6 +283,10 @@
     (log-info "Starting up...")
     (launch-route! nil nil) ;; install statics
     (secretary/dispatch! js/window.location.hash)))
+
+(defn reactivate!
+  []
+  (secretary/dispatch! js/window.location.hash))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ROUTING FUNCTIONS

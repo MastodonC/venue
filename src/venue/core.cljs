@@ -1,13 +1,13 @@
 (ns ^:figwheel-always venue.core
-    (:require [cljs.core.async :refer [<! chan put! mult tap timeout pub sub unsub unsub-all]]
-              [om.core :as om :include-macros true]
-              [om-tools.dom :as dom :include-macros true]
-              [goog.events :as events]
-              [goog.history.EventType :as EventType]
-              [secretary.core :as secretary :refer-macros [defroute]])
-    (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
-                     [cljs-log.core :as log])
-    (:import goog.History))
+  (:require [cljs.core.async :refer [<! chan put! mult tap timeout pub sub unsub unsub-all]]
+            [om.core :as om :include-macros true]
+            [om-tools.dom :as dom :include-macros true]
+            [goog.events :as events]
+            [goog.history.EventType :as EventType]
+            [secretary.core :as secretary :refer-macros [defroute]])
+  (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
+                   [cljs-log.core :as log])
+  (:import goog.History))
 
 ;; state blobs
 (defonce venue-state (atom {}))
@@ -21,7 +21,7 @@
 (defonce refresh-mult (mult refresh-ch))
 (defonce service-request-ch (chan chan-sz))
 (defonce msgbus-publisher (chan chan-sz))
-(defonce msgbus-publication (pub msgbus-publisher #(:topic %)))
+(defonce msgbus-publication (pub msgbus-publisher :topic))
 
 ;; other vars
 (defonce history (History.))
@@ -29,10 +29,10 @@
 (secretary/set-config! :prefix "#")
 
 ;; log prefix helpers
-(defn log-debug  [& body] (log/debug  log-prefix " " (apply str (interpose " " body))))
-(defn log-info   [& body] (log/info   log-prefix " " (apply str (interpose " " body))))
-(defn log-warn   [& body] (log/warn   log-prefix " " (apply str (interpose " " body))))
-(defn log-severe [& body] (log/severe log-prefix " " (apply str (interpose " " body))))
+(defn log-debug  [& body] (log/debug  log-prefix (clojure.string/join " " body)))
+(defn log-info   [& body] (log/info   log-prefix (clojure.string/join " " body)))
+(defn log-warn   [& body] (log/warn   log-prefix (clojure.string/join " " body)))
+(defn log-severe [& body] (log/severe log-prefix (clojure.string/join " " body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -163,10 +163,10 @@
   (let [venue-cursor (om/root-cursor venue-state)]
     ;; loop routes applicable to this location
     (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
-      (if-let [target-element (. js/document (getElementById (name target)))]
+      (if-let [target-element (.getElementById js/document (name target))]
         (do
           ;; if we're not installed, add an om/root
-          (when (not (:installed? (get venue-cursor target)))
+          (when-not (:installed? (get venue-cursor target))
             (install-om! target target-element venue-cursor))
 
           ;; init/activate vm
@@ -193,7 +193,7 @@
     (throw (js/Error. (str "A route with id " id " already exists!"))))
 
   ;; check for new routes.
-  (when (not (contains? (route-list) route))
+  (when-not (contains? (route-list) route)
     (log-debug "Defining a route for " route)
     (defroute (str route) {:as params}
       (log-info "Routing " route)
@@ -238,7 +238,7 @@
   [{:keys [id handler]}]
   (swap! state assoc-in [:services id] handler)
 
-  (when (not (:service-loop? @state))
+  (when-not (:service-loop? @state)
     (swap! state assoc :service-loop? true)
     (start-service-loop!)))
 
@@ -279,7 +279,7 @@
 
 (defn start!
   []
-  (when (not (:started? @state))
+  (when-not (:started? @state)
     (swap! state assoc :started? true)
     (log-info "Starting up...")
     (launch-route! nil nil) ;; install statics

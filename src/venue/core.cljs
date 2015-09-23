@@ -20,7 +20,7 @@
 (defonce refresh-ch (chan chan-sz))
 (defonce refresh-mult (mult refresh-ch))
 (defonce service-request-ch (chan chan-sz))
-(defonce msgbus-publisher (chan))
+(defonce msgbus-publisher (chan chan-sz))
 (defonce msgbus-publication (pub msgbus-publisher #(:topic %)))
 
 ;; other vars

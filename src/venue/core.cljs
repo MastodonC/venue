@@ -174,7 +174,7 @@
           (let [{:keys [view-model has-init?]} (fixture-by-id id)
                 vm ((view-model))
                 state (-> venue-cursor target :fixtures id :state)]
-            (when (not has-init?)
+            (when-not has-init?
               (om/update! venue-cursor [target :fixtures id :has-init?] true)
               (when (satisfies? IInitialise vm)
                 (initialise vm state)))

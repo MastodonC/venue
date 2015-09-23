@@ -219,22 +219,22 @@
 (defn- start-service-loop!
   []
   (go-loop []
-    (let [{:keys [caller context service-id req-id args]} (<! service-request-ch)]
-      (if-let [service (get-in @state [:services service-id])]
+    (let [{:keys [owner context service request args]} (<! service-request-ch)]
+      (if-let [service-provider (get-in @state [:services service])]
         (let [c (chan)
               to (timeout 5000)
-              rfn (fn [caller outcome req-id data context]
-                    (when (satisfies? IHandleResponse caller)
-                      (handle-response caller outcome req-id data context)))]
-          (log-debug "Received service request:" service-id req-id)
+              rfn (fn [owner outcome request data context]
+                    (when (satisfies? IHandleResponse owner)
+                      (handle-response owner outcome request data context)))]
+          (log-debug "Received service request:" service request)
           (go
             (alt!
-              c  ([[outcome data]] (rfn caller outcome req-id data context))
+              c  ([[outcome data]] (rfn owner outcome request data context))
               to ([_] (do
-                        (log-warn "A service request timed out:" service-id req-id)
-                        (rfn caller :failure req-id "The service request timed out" context)))))
-          (handle-request (service) req-id args c))
-        (log-severe "A request was sent to an unknown service: " service-id)))
+                        (log-warn "A service request timed out:" service request)
+                        (rfn owner :failure request "The service request timed out" context)))))
+          (handle-request (service-provider) request args c))
+        (log-severe "A request was sent to an unknown service: " service)))
     (recur)))
 
 (defn- add-service!
@@ -257,8 +257,8 @@
                                                         (map :current))}))))
 
 (defn request!
-  [{:keys [owner service request args context]}]
-  (put! service-request-ch {:caller owner :context context :service-id service :req-id request :args args}))
+  [payload]
+  (put! service-request-ch payload))
 
 (defn get-route
   ([id]

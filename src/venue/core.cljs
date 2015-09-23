@@ -217,7 +217,7 @@
 (defn- start-service-loop!
   []
   (go-loop []
-    (let [[caller cursor service-id req-id args] (<! service-request-ch)]
+    (let [{:keys [caller cursor service-id req-id args]} (<! service-request-ch)]
       (if-let [service (get-in @state [:services service-id])]
         (let [c (chan)
               to (timeout 5000)
@@ -256,7 +256,7 @@
   ([cursor service id args]
    (let [{:keys [view-model]} (fixture-by-cursor cursor)
          vm ((view-model))]
-     (put! service-request-ch [vm cursor service id args]))))
+     (put! service-request-ch {:caller vm :cursor cursor :service-id service :req-id id :args args}))))
 
 (defn get-route
   ([id]

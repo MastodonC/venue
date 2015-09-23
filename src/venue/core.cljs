@@ -59,6 +59,10 @@
        (reduce conj)
        id))
 
+(defn- fixtures-by-target
+  [target]
+  (->> @venue-state target :fixtures))
+
 (defn- route-list
   []
   (->> @venue-state
@@ -76,11 +80,6 @@
          (mapcat :fixtures)
          (map second)
          (filter #(or (and include-static? (:static %)) (= (:route %) location))))))
-
-(defn- get-current-fixture
-  [cursor]
-  (let [current-id (:current @cursor)]
-    (current-id (:fixtures cursor))))
 
 (defn- get-current-fixtures
   []
@@ -140,11 +139,11 @@
            ;; FIXME there's something in this go block that upsets the compiler:
            ;; "WARNING: Use of undeclared Var venue.core/bit__16711__auto__"
            (go-loop []
-             (let [e (<! event-chan)
-                   {:keys [view-model state]} (get-current-fixture cursor)
+             (let [{:keys [event args current-ids]} (<! event-chan)
+                   {:keys [view-model id]} (some (fixtures-by-target target) current-ids)
                    vm ((view-model))]
                (when (satisfies? IHandleEvent vm)
-                 (apply (partial handle-event vm) (conj e state))))
+                 (apply (partial handle-event vm) (conj [event args] (-> venue-cursor target :fixtures id :state)))))
              (recur)))
          om/IRender
          (render [_]
@@ -248,7 +247,9 @@
    (raise! owner event {}))
   ([owner event args]
    (let [c (om/get-shared owner [:event-chan])]
-     (put! c [event args]))))
+     (put! c {:event event :args args :current-ids (->> @venue-state
+                                                        (map val)
+                                                        (map :current))}))))
 
 (defn request!
   ([cursor service id]

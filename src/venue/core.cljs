@@ -1,13 +1,13 @@
 (ns ^:figwheel-always venue.core
-  (:require [cljs.core.async :refer [<! chan put! mult tap timeout pub sub unsub unsub-all]]
-            [om.core :as om :include-macros true]
-            [om-tools.dom :as dom :include-macros true]
-            [goog.events :as events]
-            [goog.history.EventType :as EventType]
-            [secretary.core :as secretary :refer-macros [defroute]])
-  (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
-                   [cljs-log.core :as log])
-  (:import goog.History))
+    (:require [cljs.core.async :refer [<! chan put! mult tap timeout pub sub unsub unsub-all]]
+              [om.core :as om :include-macros true]
+              [om-tools.dom :as dom :include-macros true]
+              [goog.events :as events]
+              [goog.history.EventType :as EventType]
+              [secretary.core :as secretary :refer-macros [defroute]])
+    (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
+                     [cljs-log.core :as log])
+    (:import goog.History))
 
 ;; state blobs
 (defonce venue-state (atom {}))
@@ -39,8 +39,11 @@
 (defprotocol IHandleEvent
   (handle-event [this event args cursor]))
 
+(defprotocol IHandleRequest
+  (handle-request [this request args response-ch]))
+
 (defprotocol IHandleResponse
-  (handle-response [this outcome event response cursor]))
+  (handle-response [this outcome event response context]))
 
 (defprotocol IActivate
   (activate [this args cursor]))
@@ -216,27 +219,29 @@
 (defn- start-service-loop!
   []
   (go-loop []
-    (let [{:keys [caller cursor service-id req-id args]} (<! service-request-ch)]
-      (if-let [service (get-in @state [:services service-id])]
+    (let [{:keys [owner context service request args]} (<! service-request-ch)]
+      (if-let [service-provider (get-in @state [:services service])]
         (let [c (chan)
               to (timeout 5000)
-              rfn (fn [caller outcome req-id data cursor]
-                    (when (satisfies? IHandleResponse caller)
-                      (handle-response caller outcome req-id data cursor)))]
-          (log-debug "Received service request:" service-id req-id)
+              rfn (fn [owner outcome request data context]
+                    (when (satisfies? IHandleResponse owner)
+                      (handle-response owner outcome request data context)))]
+          (log-debug "Received service request:" service request)
           (go
             (alt!
-              c  ([[outcome data]] (rfn caller outcome req-id data cursor))
+              c  ([[outcome data]] (rfn owner outcome request data context))
               to ([_] (do
-                        (log-warn "A service request timed out:" service-id req-id)
-                        (rfn caller :failure req-id "The service request timed out" cursor)))))
-          (service req-id args c))
-        (log-severe "A request was sent to an unknown service: " service-id)))
+                        (log-warn "A service request timed out:" service request)
+                        (rfn owner :failure request "The service request timed out" context)))))
+          (handle-request (service-provider) request args c))
+        (log-severe "A request was sent to an unknown service: " service)))
     (recur)))
 
 (defn- add-service!
   [{:keys [id handler]}]
-  (swap! state assoc-in [:services id] handler)
+  (if (satisfies? IHandleRequest (handler))
+    (swap! state assoc-in [:services id] handler)
+    (log-severe "Services must implement IHandleRequest." id))
 
   (when-not (:service-loop? @state)
     (swap! state assoc :service-loop? true)
@@ -252,12 +257,8 @@
                                                         (map :current))}))))
 
 (defn request!
-  ([cursor service id]
-   (request! cursor service id {}))
-  ([cursor service id args]
-   (let [{:keys [view-model]} (fixture-by-cursor cursor)
-         vm ((view-model))]
-     (put! service-request-ch {:caller vm :cursor cursor :service-id service :req-id id :args args}))))
+  [payload]
+  (put! service-request-ch payload))
 
 (defn get-route
   ([id]

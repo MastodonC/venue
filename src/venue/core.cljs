@@ -120,6 +120,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn- init-services
+  []
+  (doseq [service (:services @state)]
+    (let [handler ((val service))]
+      (when (satisfies? IInitialise handler)
+        (initialise handler nil)))))
+
 
 (defn- install-om!
   [target target-element venue-cursor]
@@ -239,13 +246,16 @@
 
 (defn- add-service!
   [{:keys [id handler]}]
-  (if (satisfies? IHandleRequest (handler))
-    (swap! state assoc-in [:services id] handler)
-    (log-severe "Services must implement IHandleRequest." id))
+  (if-not handler
+    (log-severe "Service is null." id)
+    (do
+      (if (satisfies? IHandleRequest (handler))
+        (swap! state assoc-in [:services id] handler)
+        (log-severe "Services must implement IHandleRequest." id))
 
-  (when-not (:service-loop? @state)
-    (swap! state assoc :service-loop? true)
-    (start-service-loop!)))
+      (when-not (:service-loop? @state)
+        (swap! state assoc :service-loop? true)
+        (start-service-loop!)))))
 
 (defn raise!
   ([owner event]
@@ -283,6 +293,7 @@
   (when-not (:started? @state)
     (swap! state assoc :started? true)
     (log-info "Starting up...")
+    (init-services)
     (launch-route! nil nil) ;; install statics
     (secretary/dispatch! js/window.location.hash)))
 

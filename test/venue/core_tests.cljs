@@ -8,3 +8,15 @@
   (let [route1 "/test"]
     (venue/defview! {:target "app" :route route1 :id :test-view})
     (is (= (venue/get-route :test-view) (str "#" route1)))))
+
+(deftest service-init
+  (let [init? (atom false)
+        service (fn []
+                  (reify
+                    venue/IHandleRequest
+                    (handle-request [owner request args response-ch])
+                    venue/IInitialise
+                    (initialise [owner cursor] (reset! init? true))))]
+    (venue/defservice! {:id :service/test :handler service})
+    (venue/start!)
+    (is init?)))

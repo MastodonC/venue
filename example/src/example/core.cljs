@@ -36,7 +36,7 @@
 
 (venue/defservice!
   {:id :service/data
-   :handler example.services.data/handler})
+   :handler example.services.data/service})
 
 (venue/start!)
 

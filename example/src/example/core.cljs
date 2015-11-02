@@ -7,6 +7,8 @@
             [example.submit.view-model]
             [example.menu.view]
             [example.menu.view-model]
+            [example.not-found.view]
+            [example.not-found.view-model]
             ;;
             [example.services.data])
   (:require-macros [cljs-log.core :as log]))
@@ -26,6 +28,14 @@
    :view example.submit.view/view
    :view-model example.submit.view-model/view-model
    :state {:text "Submit Page"}})
+
+(venue/defview!
+  {:target "app"
+   :route :not-found
+   :id :views/not-found
+   :view example.not-found.view/view
+   :view-model example.not-found.view-model/view-model
+   :state {}})
 
 (venue/defstatic!
   {:target "menu"

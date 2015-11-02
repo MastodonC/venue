@@ -169,31 +169,33 @@
   (om/update! venue-cursor [target :installed?] true))
 
 (defn- launch-route!
-  [location route-params]
-  (let [venue-cursor (om/root-cursor venue-state)]
-    ;; loop routes applicable to this location
-    (doseq [{:keys [target id]} (filter-fixtures location {:include-static? true})]
-      (if-let [target-element (.getElementById js/document (name target))]
-        (do
-          ;; if we're not installed, add an om/root
-          (when-not (:installed? (get venue-cursor target))
-            (install-om! target target-element venue-cursor))
+  ([location route-params]
+   (launch-route! location route-params false))
+  ([location route-params not-found?]
+   (let [venue-cursor (om/root-cursor venue-state)]
+     ;; loop routes applicable to this location
+     (doseq [{:keys [target id]} (filter-fixtures (if not-found? :not-found location) {:include-static? true})]
+       (if-let [target-element (.getElementById js/document (name target))]
+         (do
+           ;; if we're not installed, add an om/root
+           (when-not (:installed? (get venue-cursor target))
+             (install-om! target target-element venue-cursor))
 
-          ;; init/activate vm
-          (let [{:keys [view-model has-init?]} (fixture-by-id id)
-                vm ((view-model))
-                state (-> venue-cursor target :fixtures id :state)]
-            (when-not has-init?
-              (om/update! venue-cursor [target :fixtures id :has-init?] true)
-              (when (satisfies? IInitialise vm)
-                (initialise vm state)))
-            (when (satisfies? IActivate vm)
-              (activate vm route-params state)))
+           ;; init/activate vm
+           (let [{:keys [view-model has-init?]} (fixture-by-id id)
+                 vm ((view-model))
+                 state (-> venue-cursor target :fixtures id :state)]
+             (when-not has-init?
+               (om/update! venue-cursor [target :fixtures id :has-init?] true)
+               (when (satisfies? IInitialise vm)
+                 (initialise vm state)))
+             (when (satisfies? IActivate vm)
+               (activate vm route-params state)))
 
-          ;; write current id to state
-          (om/update! venue-cursor [target :current] id))
+           ;; write current id to state
+           (om/update! venue-cursor [target :current] id))
 
-        (log-warn target " couldn't be found. Use <TODO> to suppress the warning.")))))
+         (log-warn target " couldn't be found. Use <TODO> to suppress the warning."))))))
 
 (defn- add-view!
   [{:keys [target view view-model id state route] :as fix}]
@@ -207,7 +209,8 @@
     (log-debug "Defining a route for " route)
     (defroute (str route) {:as params}
       (log-info "Routing " route)
-      (launch-route! route params)))
+      (launch-route! route params)
+      true))
 
   ;; save the view
   (let [ktarget (keyword target)
@@ -225,11 +228,19 @@
 
 (defn- start-service-loop!
   []
+  (log/debug "Starting service loop.")
   (go-loop []
-    (let [{:keys [owner context service request args]} (<! service-request-ch)]
+    (let [{:keys [owner
+                  context
+                  service
+                  request
+                  args
+                  timeout-ms
+                  timeout?]
+           :or {timeout? true}} (<! service-request-ch)]
       (if-let [service-provider (get-in @state [:services service])]
         (let [c (chan)
-              to (timeout 5000)
+              to (timeout (or timeout-ms 5000))
               rfn (fn [owner outcome request data context]
                     (when (satisfies? IHandleResponse owner)
                       (handle-response owner outcome request data context)))]
@@ -237,7 +248,8 @@
           (go
             (alt!
               c  ([[outcome data]] (rfn owner outcome request data context))
-              to ([_] (do
+              ;; TODO ideally we should use `alts!` so that we don't even have a timeout chan if `timeout?` is false.
+              to ([_] (when timeout?
                         (log-warn "A service request timed out:" service request)
                         (rfn owner :failure request "The service request timed out" context)))))
           (handle-request (service-provider) request args c))
@@ -249,6 +261,7 @@
   (if-not handler
     (log-severe "Service is null." id)
     (do
+      (log/debug "Adding service" id)
       (if (satisfies? IHandleRequest (handler))
         (swap! state assoc-in [:services id] handler)
         (log-severe "Services must implement IHandleRequest." id))
@@ -288,15 +301,6 @@
      (log-info "Navigating to " route)
      (set! (.. js/document -location -href) route))))
 
-(defn start!
-  []
-  (when-not (:started? @state)
-    (swap! state assoc :started? true)
-    (log-info "Starting up...")
-    (init-services)
-    (launch-route! nil nil) ;; install statics
-    (secretary/dispatch! js/window.location.hash)))
-
 (defn reactivate!
   []
   (secretary/dispatch! js/window.location.hash))
@@ -307,9 +311,12 @@
 
 (defn on-navigate [event]
   (let [path (.-token event)]
-    (secretary/dispatch! path)))
+    (when-not (secretary/dispatch! path)
+      (log/info "View could not be found for this route:" path "- attempting to display 'not-found' view")
+      (launch-route! path {} true))))
 
-(defonce set-up-history!
+(defn set-up-history!
+  []
   (doto history
     (goog.events/listen EventType/NAVIGATE on-navigate)
     (.setEnabled true)))
@@ -317,3 +324,15 @@
 (defn on-js-reload []
   (log-debug "Refreshing views...")
   (put! refresh-ch true))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn start!
+  []
+  (when-not (:started? @state)
+    (swap! state assoc :started? true)
+    (log-info "Starting up...")
+    (set-up-history!)
+    (init-services)
+    (launch-route! nil nil) ;; install statics
+    (secretary/dispatch! js/window.location.hash)))

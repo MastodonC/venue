@@ -1,4 +1,4 @@
-(ns ^:figwheel-always example.home.view-model
+(ns ^:figwheel-always example.not-found.view-model
     (:require [om.core :as om :include-macros true]
               [schema.core :as s :include-macros true]
               [venue.core :as venue :include-macros true])
@@ -32,34 +32,3 @@
 
 (defn on-initialise [_ _])
 (defn on-activate [_ _ _])
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defmethod event-handler
-  :login
-  [owner {:keys [email password] :as login-args} cursor]
-  (log/debug "Logging in..." email password)
-  (venue/request! {:owner owner
-                   :service :service/data
-                   :request :login
-                   :args login-args
-                   :context cursor
-                   :timeout? false}))
-
-(defmethod event-handler
-  :test-event
-  [_ new-text cursor]
-  (om/update! cursor :text new-text))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defmethod response-handler
-  [:login :success]
-  [_ response cursor]
-  (log/debug "RESPONSE HANDLER SUCCESS"))
-
-(defmethod response-handler
-  [:login :failure]
-  [_ response cursor]
-  (log/debug "RESPONSE HANDLER FAILURE:" response))

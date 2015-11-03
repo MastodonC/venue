@@ -1,7 +1,8 @@
 (ns example.services.data
-  (:require [venue.core :as venue])
-  (:require-macros [cljs-log.core :as log]))
-
+  (:require [venue.core :as venue]
+            [cljs.core.async :refer [chan close! put! timeout]])
+  (:require-macros [cljs-log.core :as log]
+                   [cljs.core.async.macros :as m :refer [go]]))
 
 (defmulti request-handler
   (fn [owner event args result-ch] event))
@@ -22,4 +23,9 @@
 (defmethod request-handler
   :login
   [owner _ args result-ch]
-  (log/debug "Got login request"))
+  (let [wait 6000]
+    (log/debug "Got login request. Waiting" wait "ms...")
+    (go
+      (<! (timeout wait))
+      (log/debug "Finished waiting.")
+      (put! result-ch [:success "OK"]))))

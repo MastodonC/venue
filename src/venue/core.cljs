@@ -240,18 +240,19 @@
            :or {timeout? true}} (<! service-request-ch)]
       (if-let [service-provider (get-in @state [:services service])]
         (let [c (chan)
-              to (timeout (or timeout-ms 5000))
+              to (when timeout? (timeout (or timeout-ms 5000)))
               rfn (fn [owner outcome request data context]
                     (when (satisfies? IHandleResponse owner)
-                      (handle-response owner outcome request data context)))]
+                      (handle-response owner outcome request data context)))
+              alts-chans (remove nil? [c to])]
           (log-debug "Received service request:" service request)
           (go
-            (alt!
-              c  ([[outcome data]] (rfn owner outcome request data context))
-              ;; TODO ideally we should use `alts!` so that we don't even have a timeout chan if `timeout?` is false.
-              to ([_] (when timeout?
-                        (log-warn "A service request timed out:" service request)
-                        (rfn owner :failure request "The service request timed out" context)))))
+            (let [[[outcome data] p] (alts! alts-chans)]
+              (condp = p
+                c (rfn owner outcome request data context)
+                to (do
+                     (log-warn "A service request timed out:" service request)
+                     (rfn owner :failure request "The service request timed out" context)))))
           (handle-request (service-provider) request args c))
         (log-severe "A request was sent to an unknown service: " service)))
     (recur)))

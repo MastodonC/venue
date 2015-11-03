@@ -1,14 +1,8 @@
 (ns example.services.data
   (:require [venue.core :as venue]
-            [cljs.core.async :refer [chan close! put!]])
+            [cljs.core.async :refer [chan close! put! timeout]])
   (:require-macros [cljs-log.core :as log]
                    [cljs.core.async.macros :as m :refer [go]]))
-
-(defn timeout [ms]
-  (let [c (chan)]
-    (js/setTimeout (fn [] (close! c)) ms)
-    c))
-
 
 (defmulti request-handler
   (fn [owner event args result-ch] event))

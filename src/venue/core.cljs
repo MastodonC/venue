@@ -100,6 +100,10 @@
        (filter #(= (:state %) @cursor))
        first))
 
+(defn keyw->string
+  [keyw]
+  (clojure.string/join (interleave ((juxt namespace name) keyw) ["-" ""])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn subscribe!
@@ -159,7 +163,8 @@
          (render [_]
            (if-let [current-id (:current cursor)]
              (let [{:keys [view state]} (current-id (:fixtures cursor))]
-               (dom/div nil
+               (dom/div {:class "venue-container"
+                         :id (str "venue-view-" (keyw->string current-id))}
                         (if view
                           (om/build (view) state))))))))
      venue-state

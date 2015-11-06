@@ -102,7 +102,7 @@
 
 (defn keyw->string
   [keyw]
-  (apply str (interleave ((juxt namespace name) keyw) ["-" ""])))
+  (clojure.string/join (interleave ((juxt namespace name) keyw) ["-" ""])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

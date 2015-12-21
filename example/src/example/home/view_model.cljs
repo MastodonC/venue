@@ -25,7 +25,12 @@
                        (response-handler owner [event outcome] response context))
     venue/IActivate
     (activate [owner args cursor]
-                (on-activate owner args cursor))
+      (on-activate owner args cursor))
+
+    venue/IDeactivate
+    (deactivate [owner cursor]
+      (log/info "Deactivating home"))
+
     venue/IInitialise
     (initialise [owner cursor]
       (on-initialise owner cursor))))

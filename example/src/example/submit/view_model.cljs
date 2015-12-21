@@ -6,7 +6,7 @@
 
 (defn handler
   [event args cursor ctx]
-  (println "Got event" event))
+  (log/debug "Got event" event))
 
 (defn view-model
   [ctx]

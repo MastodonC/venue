@@ -48,6 +48,9 @@
 (defprotocol IActivate
   (activate [this args cursor]))
 
+(defprotocol IDeactivate
+  (deactivate [this cursor]))
+
 (defprotocol IInitialise
   (initialise [this cursor]))
 
@@ -189,11 +192,17 @@
            ;; init/activate vm
            (let [{:keys [view-model has-init?]} (fixture-by-id id)
                  vm ((view-model))
-                 state (-> venue-cursor target :fixtures id :state)]
+                 state (-> venue-cursor target :fixtures id :state)
+                 old-vm-id (some-> venue-cursor target :current)
+                 old-vm-fixture (when (and old-vm-id (not= old-vm-id id))
+                                  (fixture-by-id old-vm-id))
+                 old-vm (when old-vm-fixture (((:view-model old-vm-fixture))))]
              (when-not has-init?
                (om/update! venue-cursor [target :fixtures id :has-init?] true)
                (when (satisfies? IInitialise vm)
                  (initialise vm state)))
+             (when (and old-vm (satisfies? IDeactivate old-vm))
+               (deactivate old-vm (:state old-vm-fixture)))
              (when (satisfies? IActivate vm)
                (activate vm route-params state)))
 

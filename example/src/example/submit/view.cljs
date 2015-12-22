@@ -17,4 +17,7 @@
             [:h4
              [:a {:href (venue/get-route :views/submit {:foo foo :bar (inc (js/parseInt bar))} {:no-history true})} "inc"]]
             [:h4
-             [:a {:href (venue/get-route :views/submit {:query-params {:bananas "12"} :foo foo :bar (dec (js/parseInt bar))} {:no-history true})} "dec"]]])))
+             [:div
+              {:style {:cursor "pointer"} :on-click #(do
+                                                     (venue/navigate! :views/submit {:query-params {:bananas "12"} :foo foo :bar (dec (js/parseInt bar))} {:no-history true})
+                                                     (.preventDefault %))} "dec"]]])))

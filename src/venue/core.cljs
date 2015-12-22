@@ -128,7 +128,18 @@
      (log-debug "Message bus publish: " payload)
      (go (>! msgbus-publisher payload)))))
 
-(defn install-link-hooks!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- handle-magic-query-params!
+  [params uri]
+  (doseq [[k v] params]
+    (condp = k
+      :_v_nh (do
+               (doto history (.replaceToken uri))
+               true)
+      false)))
+
+(defn- install-link-hooks!
   [q-params-to-hook]
   (let [links (. js/document getElementsByTagName "a")]
     (doseq [i (range (.-length links))]
@@ -146,15 +157,8 @@
                   (let [full-uri (secretary/uri-without-prefix url-strip)
                         [uri query-string] (str/split full-uri #"\?")
                         params (secretary/decode-query-params query-string)]
-                    (doseq [[k v] params]
-                      (condp = k
-                        :_v_nh (do
-                                 (doto history (.replaceToken full-uri))
-                                 (.preventDefault e))
-                        :default))))))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+                    (when (handle-magic-query-params! params full-uri)
+                      (.preventDefault e))))))))))
 (defn- init-services
   []
   (doseq [service (:services @state)]
@@ -350,18 +354,24 @@
    (if-let [route (->> id fixture-by-id :route)]
      (let [normalised-params (normalise-route-params params link-hook-ids)
            opts-combined (update-in opts [:query-params] #(merge % normalised-params))]
-       (secretary/render-route route opts-combined))
+       (secretary/render-route route (not-empty opts-combined)))
      (log-severe "get-route tried failed to find a fixture with the following id:" id))))
 
 (defn navigate!
   ([id]
-   (navigate! id {}))
+   (navigate! id {} {}))
   ([id opts]
-   (let [route (get-route id opts)]
-     (if (:static route)
-       (throw (js/Error. "Cannot navigate to a static fixture!")))
-     (log-info "Navigating to " route)
-     (set! (.. js/document -location -href) route))))
+   (navigate! id opts {}))
+  ([id opts params]
+   (let [route (get-route id opts params)]
+     (if route
+       (let [full-uri (secretary/uri-without-prefix route)
+             [uri query-string] (str/split full-uri #"\?")
+             params (secretary/decode-query-params query-string)]
+         (when-not (handle-magic-query-params! params full-uri)
+           (log-info "Navigating to " route)
+           (set! (.. js/document -location -href) route)))
+       (throw (js/Error. "No route was returned. Were you trying to navigate to a static fixture?"))))))
 
 (defn reactivate!
   []

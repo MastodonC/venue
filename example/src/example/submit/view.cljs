@@ -15,6 +15,6 @@
             [:h3 (str "foo=" foo)]
             [:h3 (str "bar=" bar)]
             [:h4
-             [:a {:href (venue/get-route :views/submit {:foo foo :bar (inc (js/parseInt bar))} {:history false})} "inc"]]
+             [:a {:href (venue/get-route :views/submit {:foo foo :bar (inc (js/parseInt bar))} {:no-history true})} "inc"]]
             [:h4
-             [:a {:href (venue/get-route :views/submit {:query-params {:bananas "12"} :foo foo :bar (dec (js/parseInt bar))} {:history false})} "dec"]]])))
+             [:a {:href (venue/get-route :views/submit {:query-params {:bananas "12"} :foo foo :bar (dec (js/parseInt bar))} {:no-history true})} "dec"]]])))

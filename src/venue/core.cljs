@@ -298,12 +298,28 @@
   [payload]
   (put! service-request-ch payload))
 
+(defn bool->int
+  [b]
+  (if b 1 0))
+
+(defn normalise-route-params
+  [params]
+  (let [lookup {:history [:_v_h bool->int]}
+        rfn (fn [a [k v]] (if (contains? lookup k)
+                            (let [[new-key parse] (get lookup k)]
+                              (assoc a new-key (parse v))) a))]
+    (reduce rfn {} params)))
+
 (defn get-route
   ([id]
-   (get-route id {}))
+   (get-route id {} {}))
   ([id opts]
+   (get-route id opts {}))
+  ([id opts params]
    (if-let [route (->> id fixture-by-id :route)]
-     (secretary/render-route route opts)
+     (let [normalised-params (normalise-route-params params)
+           opts-combined (update-in opts [:query-params] #(merge % normalised-params))]
+       (secretary/render-route route opts-combined))
      (log-severe "get-route tried failed to find a fixture with the following id:" id))))
 
 (defn navigate!

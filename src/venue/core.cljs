@@ -4,7 +4,8 @@
               [om-tools.dom :as dom :include-macros true]
               [goog.events :as events]
               [goog.history.EventType :as EventType]
-              [secretary.core :as secretary :refer-macros [defroute]])
+              [secretary.core :as secretary :refer-macros [defroute]]
+              [clojure.string :as str])
     (:require-macros [cljs.core.async.macros :as am :refer [go go-loop alt!]]
                      [cljs-log.core :as log])
     (:import goog.History))
@@ -27,12 +28,14 @@
 (defonce history (History.))
 (defonce log-prefix "[venue]")
 (secretary/set-config! :prefix "#")
+(defonce link-hook-ids
+  {:no-history :_v_nh})
 
 ;; log prefix helpers
-(defn log-debug  [& body] (log/debug  log-prefix (clojure.string/join " " body)))
-(defn log-info   [& body] (log/info   log-prefix (clojure.string/join " " body)))
-(defn log-warn   [& body] (log/warn   log-prefix (clojure.string/join " " body)))
-(defn log-severe [& body] (log/severe log-prefix (clojure.string/join " " body)))
+(defn log-debug  [& body] (log/debug  log-prefix (str/join " " body)))
+(defn log-info   [& body] (log/info   log-prefix (str/join " " body)))
+(defn log-warn   [& body] (log/warn   log-prefix (str/join " " body)))
+(defn log-severe [& body] (log/severe log-prefix (str/join " " body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -105,7 +108,7 @@
 
 (defn keyw->string
   [keyw]
-  (clojure.string/join (interleave ((juxt namespace name) keyw) ["-" ""])))
+  (str/join (interleave ((juxt namespace name) keyw) ["-" ""])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -127,6 +130,35 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn- handle-magic-query-params!
+  [params uri]
+  (doseq [[k v] params]
+    (condp = k
+      :_v_nh (do
+               (doto history (.replaceToken uri))
+               true)
+      false)))
+
+(defn- install-link-hooks!
+  [q-params-to-hook]
+  (let [links (. js/document getElementsByTagName "a")]
+    (doseq [i (range (.-length links))]
+      (let [link (aget links i)
+            url (.-href link)
+            url-strip (-> url
+                          (str/replace (.. js/document -location -origin) "")
+                          (str/replace #"^\s*/" ""))
+            idx-hash (.indexOf url-strip "#")]
+        (when (and (== idx-hash 0)
+                   (some #(when (>= (.indexOf url-strip (name %)) 0) true) q-params-to-hook))
+          (log/debug "Hooked link due to special query param -" url-strip)
+          (set! (.-onclick link)
+                (fn [e]
+                  (let [full-uri (secretary/uri-without-prefix url-strip)
+                        [uri query-string] (str/split full-uri #"\?")
+                        params (secretary/decode-query-params query-string)]
+                    (when (handle-magic-query-params! params full-uri)
+                      (.preventDefault e))))))))))
 (defn- init-services
   []
   (doseq [service (:services @state)]
@@ -169,7 +201,14 @@
                (dom/div {:class "venue-container"
                          :id (str "venue-view-" (keyw->string current-id))}
                         (if view
-                          (om/build (view) state))))))))
+                          (om/build (view) state))))))
+         om/IDidMount
+         (did-mount [_]
+           (install-link-hooks! (vals link-hook-ids)))
+         om/IDidUpdate
+         (did-update [_ _ _]
+           (install-link-hooks! (vals link-hook-ids)))
+         ))
      venue-state
      {:target target-element
       :path [target]
@@ -298,23 +337,41 @@
   [payload]
   (put! service-request-ch payload))
 
+(defn normalise-route-params
+  [params lookup]
+  (let [rfn (fn [a [k v]] (if (and (contains? lookup k) v)
+                            (assoc a (get lookup k) 1)
+                            ;; else
+                            a))]
+    (reduce rfn {} params)))
+
 (defn get-route
   ([id]
-   (get-route id {}))
+   (get-route id {} {}))
   ([id opts]
+   (get-route id opts {}))
+  ([id opts params]
    (if-let [route (->> id fixture-by-id :route)]
-     (secretary/render-route route opts)
+     (let [normalised-params (normalise-route-params params link-hook-ids)
+           opts-combined (update-in opts [:query-params] #(merge % normalised-params))]
+       (secretary/render-route route (not-empty opts-combined)))
      (log-severe "get-route tried failed to find a fixture with the following id:" id))))
 
 (defn navigate!
   ([id]
-   (navigate! id {}))
+   (navigate! id {} {}))
   ([id opts]
-   (let [route (get-route id opts)]
-     (if (:static route)
-       (throw (js/Error. "Cannot navigate to a static fixture!")))
-     (log-info "Navigating to " route)
-     (set! (.. js/document -location -href) route))))
+   (navigate! id opts {}))
+  ([id opts params]
+   (let [route (get-route id opts params)]
+     (if route
+       (let [full-uri (secretary/uri-without-prefix route)
+             [uri query-string] (str/split full-uri #"\?")
+             params (secretary/decode-query-params query-string)]
+         (when-not (handle-magic-query-params! params full-uri)
+           (log-info "Navigating to " route)
+           (set! (.. js/document -location -href) route)))
+       (throw (js/Error. "No route was returned. Were you trying to navigate to a static fixture?"))))))
 
 (defn reactivate!
   []

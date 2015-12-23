@@ -15,6 +15,8 @@
   :plugins [[lein-cljsbuild "1.1.0"]
             [lein-doo "0.1.5-SNAPSHOT"]]
 
+  :deploy-repositories [["releases" :clojars]]
+
   :cljsbuild {:builds {:test {:source-paths ["src/" "test/"]
                               :compiler {:output-to "resources/public/js/testable.js"
                                          :main 'venue.test-runner

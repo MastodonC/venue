@@ -241,12 +241,13 @@
                (when (satisfies? IInitialise vm)
                  (initialise vm state)))
              (when (and old-vm (satisfies? IDeactivate old-vm))
-               (deactivate old-vm (:state old-vm-fixture)))
+               (deactivate old-vm (-> venue-cursor target :fixtures old-vm-id :state)))
              (when (satisfies? IActivate vm)
                (activate vm route-params state)))
 
            ;; write current id to state
-           (om/update! venue-cursor [target :current] id))
+           (om/update! venue-cursor [target :current] id)
+           (publish! :venue/view-activated {:target target :id id :args route-params}))
 
          (log-warn target " couldn't be found. Use <TODO> to suppress the warning."))))))
 

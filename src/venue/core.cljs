@@ -70,7 +70,7 @@
 
 (defn- fixtures-by-target
   [target]
-  (->> @venue-state target :fixtures))
+  (get-in @venue-state [target :fixtures]))
 
 (defn- route-list
   []
@@ -192,7 +192,7 @@
                    {:keys [view-model id]} (some (fixtures-by-target target) current-ids)
                    vm ((view-model))]
                (when (satisfies? IHandleEvent vm)
-                 (apply (partial handle-event vm) (conj [event args] (-> venue-cursor target :fixtures id :state)))))
+                 (apply (partial handle-event vm) (conj [event args] (get-in venue-cursor [target :fixtures id :state])))))
              (recur)))
          om/IRender
          (render [_]
@@ -231,7 +231,7 @@
            ;; init/activate vm
            (let [{:keys [view-model has-init?]} (fixture-by-id id)
                  vm ((view-model))
-                 state (-> venue-cursor target :fixtures id :state)
+                 state (get-in venue-cursor [target :fixtures id :state])
                  old-vm-id (some-> venue-cursor target :current)
                  old-vm-fixture (when (and old-vm-id (not= old-vm-id id))
                                   (fixture-by-id old-vm-id))
@@ -241,7 +241,7 @@
                (when (satisfies? IInitialise vm)
                  (initialise vm state)))
              (when (and old-vm (satisfies? IDeactivate old-vm))
-               (deactivate old-vm (-> venue-cursor target :fixtures old-vm-id :state)))
+               (deactivate old-vm (get-in venue-cursor [target :fixtures old-vm-id :state])))
              (when (satisfies? IActivate vm)
                (activate vm route-params state)))
 
@@ -253,6 +253,8 @@
 
 (defn- add-view!
   [{:keys [target view view-model id state route] :as fix}]
+
+
 
   ;; FIXME perhaps we do something other than throw here?
   (if (fixture-by-id id)

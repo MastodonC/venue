@@ -1,4 +1,4 @@
-(defproject venue "0.1.10-SNAPSHOT"
+(defproject venue "0.1.10"
   :description "Experimental MVVM-like framework for ClojureScript"
   :url "https://github.com/mastodonc/venue"
   :license {:name "Eclipse Public License"
